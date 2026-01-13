@@ -3,6 +3,9 @@ import { productsService } from "@/lib/services/products.service";
 
 export async function GET(req: NextRequest) {
   try {
+    console.log('🔍 [PRODUCTS API] Request received:', req.url);
+    console.log('🔍 [PRODUCTS API] DATABASE_URL:', process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 50)}...` : "NOT SET");
+    
     const { searchParams } = new URL(req.url);
     const filters = {
       category: searchParams.get("category") || undefined,
@@ -37,7 +40,13 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json(result);
   } catch (error: any) {
-    console.error("❌ [PRODUCTS] Error:", error);
+    console.error("❌ [PRODUCTS API] Error:", {
+      message: error?.message,
+      stack: error?.stack,
+      name: error?.name,
+      code: error?.code,
+      databaseUrl: process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 50)}...` : "NOT SET",
+    });
     return NextResponse.json(
       {
         type: error.type || "https://api.shop.am/problems/internal-error",
@@ -45,6 +54,10 @@ export async function GET(req: NextRequest) {
         status: error.status || 500,
         detail: error.detail || error.message || "An error occurred",
         instance: req.url,
+        ...(process.env.NODE_ENV === "development" && {
+          stack: error.stack,
+          databaseUrl: process.env.DATABASE_URL ? `${process.env.DATABASE_URL.substring(0, 30)}...` : "NOT SET",
+        }),
       },
       { status: error.status || 500 }
     );

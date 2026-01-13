@@ -7,16 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================
-// USER MODEL
-// ============================================
 model User {
   id                   String    @id @default(cuid())
   email                String?   @unique
   phone                String?   @unique
   passwordHash         String?
-  passwordResetToken   String?
-  passwordResetExpires DateTime?
   firstName            String?
   lastName             String?
   emailVerified        Boolean   @default(false)
@@ -24,14 +19,14 @@ model User {
   locale               String    @default("en")
   blocked              Boolean   @default(false)
   roles                String[]  @default(["customer"])
-  addresses            Address[]
   deletedAt            DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
-
-  // Relations
-  carts  Cart[]
-  orders Order[]
+  passwordResetExpires DateTime?
+  passwordResetToken   String?
+  addresses            Address[]
+  carts                Cart[]
+  orders               Order[]
 
   @@index([deletedAt])
   @@map("users")
@@ -51,15 +46,11 @@ model Address {
   countryCode  String  @default("AM")
   phone        String?
   isDefault    Boolean @default(false)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("addresses")
 }
 
-// ============================================
-// CATEGORY MODEL
-// ============================================
 model Category {
   id            String                @id @default(cuid())
   parentId      String?
@@ -67,15 +58,13 @@ model Category {
   published     Boolean               @default(false)
   requiresSizes Boolean               @default(false)
   media         Json[]                @default([])
-  translations  CategoryTranslation[]
   deletedAt     DateTime?
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
-
-  // Relations
-  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
-  children Category[] @relation("CategoryTree")
-  products Product[]  @relation("ProductCategories")
+  parent        Category?             @relation("CategoryTree", fields: [parentId], references: [id])
+  children      Category[]            @relation("CategoryTree")
+  translations  CategoryTranslation[]
+  products      Product[]             @relation("ProductCategories")
 
   @@index([parentId])
   @@index([published])
@@ -84,7 +73,7 @@ model Category {
 }
 
 model CategoryTranslation {
-  id             String  @id @default(cuid())
+  id             String   @id @default(cuid())
   categoryId     String
   locale         String
   title          String
@@ -93,29 +82,23 @@ model CategoryTranslation {
   description    String?
   seoTitle       String?
   seoDescription String?
-
-  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category       Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@unique([categoryId, locale])
   @@index([slug, locale])
   @@map("category_translations")
 }
 
-// ============================================
-// BRAND MODEL
-// ============================================
 model Brand {
   id           String             @id @default(cuid())
   slug         String             @unique
   logoUrl      String?
   published    Boolean            @default(false)
-  translations BrandTranslation[]
   deletedAt    DateTime?
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
-
-  // Relations
-  products Product[]
+  translations BrandTranslation[]
+  products     Product[]
 
   @@index([published])
   @@index([deletedAt])
@@ -128,38 +111,33 @@ model BrandTranslation {
   locale      String
   name        String
   description String?
-
-  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brand       Brand   @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
   @@unique([brandId, locale])
   @@map("brand_translations")
 }
 
-// ============================================
-// ATTRIBUTE MODEL
-// ============================================
 model Attribute {
   id                String                 @id @default(cuid())
   key               String                 @unique
   type              String                 @default("select")
   filterable        Boolean                @default(true)
   position          Int                    @default(0)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
   translations      AttributeTranslation[]
   values            AttributeValue[]
   productAttributes ProductAttribute[]
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
 
   @@map("attributes")
 }
 
 model AttributeTranslation {
-  id          String @id @default(cuid())
+  id          String    @id @default(cuid())
   attributeId String
   locale      String
   name        String
-
-  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  attribute   Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
 
   @@unique([attributeId, locale])
   @@map("attribute_translations")
@@ -171,28 +149,23 @@ model AttributeValue {
   value          String
   position       Int                         @default(0)
   translations   AttributeValueTranslation[]
+  attribute      Attribute                   @relation(fields: [attributeId], references: [id], onDelete: Cascade)
   variantOptions ProductVariantOption[]
-
-  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
 
   @@map("attribute_values")
 }
 
 model AttributeValueTranslation {
-  id               String @id @default(cuid())
+  id               String         @id @default(cuid())
   attributeValueId String
   locale           String
   label            String
-
-  attributeValue AttributeValue @relation(fields: [attributeValueId], references: [id], onDelete: Cascade)
+  attributeValue   AttributeValue @relation(fields: [attributeValueId], references: [id], onDelete: Cascade)
 
   @@unique([attributeValueId, locale])
   @@map("attribute_value_translations")
 }
 
-// ============================================
-// PRODUCT MODEL
-// ============================================
 model Product {
   id                String               @id @default(cuid())
   brandId           String?
@@ -201,22 +174,20 @@ model Product {
   published         Boolean              @default(false)
   featured          Boolean              @default(false)
   publishedAt       DateTime?
-  translations      ProductTranslation[]
   categoryIds       String[]
   primaryCategoryId String?
   attributeIds      String[]
-  variants          ProductVariant[]
-  labels            ProductLabel[]
-  productAttributes ProductAttribute[]
   discountPercent   Int                  @default(0)
   deletedAt         DateTime?
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
-
-  // Relations
-  brand      Brand?     @relation(fields: [brandId], references: [id])
-  categories Category[] @relation("ProductCategories")
-  cartItems  CartItem[]
+  cartItems         CartItem[]
+  productAttributes ProductAttribute[]
+  labels            ProductLabel[]
+  translations      ProductTranslation[]
+  variants          ProductVariant[]
+  brand             Brand?               @relation(fields: [brandId], references: [id])
+  categories        Category[]           @relation("ProductCategories")
 
   @@index([brandId])
   @@index([published, publishedAt])
@@ -232,11 +203,10 @@ model ProductTranslation {
   title           String
   slug            String
   subtitle        String?
-  descriptionHtml String? @db.Text
+  descriptionHtml String?
   seoTitle        String?
   seoDescription  String?
-
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product         Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, locale])
   @@index([slug, locale])
@@ -257,28 +227,26 @@ model ProductVariant {
   imageUrl       String?
   position       Int                    @default(0)
   published      Boolean                @default(true)
-  options        ProductVariantOption[]
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
-
-  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
-  cartItems  CartItem[]
-  orderItems OrderItem[]
+  cartItems      CartItem[]
+  orderItems     OrderItem[]
+  options        ProductVariantOption[]
+  product        Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
   @@map("product_variants")
 }
 
 model ProductVariantOption {
-  id           String  @id @default(cuid())
-  variantId    String
-  attributeId  String?
-  attributeKey String?
-  valueId      String?
-  value        String?
-
+  id             String          @id @default(cuid())
+  variantId      String
+  attributeId    String?
+  attributeKey   String?
+  valueId        String?
+  value          String?
+  attributeValue AttributeValue? @relation(fields: [valueId], references: [id])
   variant        ProductVariant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  attributeValue AttributeValue? @relation(fields: [valueId], references: [id], onDelete: SetNull)
 
   @@index([valueId])
   @@map("product_variant_options")
@@ -287,28 +255,23 @@ model ProductVariantOption {
 model ProductLabel {
   id        String  @id @default(cuid())
   productId String
-  type      String // 'text' | 'percentage'
+  type      String
   value     String
-  position  String  @default("top-left") // 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+  position  String  @default("top-left")
   color     String?
-
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("product_labels")
 }
 
-// ============================================
-// PRODUCT ATTRIBUTE JUNCTION TABLE
-// ============================================
 model ProductAttribute {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   productId   String
   attributeId String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  attribute   Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, attributeId])
   @@index([productId])
@@ -316,9 +279,6 @@ model ProductAttribute {
   @@map("product_attributes")
 }
 
-// ============================================
-// CART MODEL
-// ============================================
 model Cart {
   id          String     @id @default(cuid())
   userId      String?
@@ -328,12 +288,10 @@ model Cart {
   abandoned   Boolean    @default(false)
   abandonedAt DateTime?
   expiresAt   DateTime
-  items       CartItem[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
-
-  // Relations
-  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items       CartItem[]
+  user        User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([abandoned, abandonedAt])
@@ -342,25 +300,21 @@ model Cart {
 }
 
 model CartItem {
-  id            String   @id @default(cuid())
+  id            String         @id @default(cuid())
   cartId        String
   variantId     String
   productId     String
   quantity      Int
   priceSnapshot Float
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  cart    Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  variant ProductVariant @relation(fields: [variantId], references: [id])
-  product Product        @relation(fields: [productId], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  cart          Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product       Product        @relation(fields: [productId], references: [id])
+  variant       ProductVariant @relation(fields: [variantId], references: [id])
 
   @@map("cart_items")
 }
 
-// ============================================
-// ORDER MODEL
-// ============================================
 model Order {
   id                String       @id @default(cuid())
   number            String       @unique
@@ -381,21 +335,19 @@ model Order {
   shippingAddress   Json?
   shippingMethod    String?
   trackingNumber    String?
-  notes             String?      @db.Text
-  adminNotes        String?      @db.Text
+  notes             String?
+  adminNotes        String?
   ipAddress         String?
   userAgent         String?
   paidAt            DateTime?
   fulfilledAt       DateTime?
   cancelledAt       DateTime?
-  items             OrderItem[]
-  payments          Payment[]
-  events            OrderEvent[]
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
-
-  // Relations
-  user User? @relation(fields: [userId], references: [id])
+  events            OrderEvent[]
+  items             OrderItem[]
+  user              User?        @relation(fields: [userId], references: [id])
+  payments          Payment[]
 
   @@index([userId])
   @@index([status, createdAt(sort: Desc)])
@@ -405,7 +357,7 @@ model Order {
 }
 
 model OrderItem {
-  id           String  @id @default(cuid())
+  id           String          @id @default(cuid())
   orderId      String
   variantId    String?
   productTitle String
@@ -415,9 +367,8 @@ model OrderItem {
   price        Float
   total        Float
   imageUrl     String?
-
-  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  variant ProductVariant? @relation(fields: [variantId], references: [id])
+  order        Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant      ProductVariant? @relation(fields: [variantId], references: [id])
 
   @@map("order_items")
 }
@@ -441,8 +392,7 @@ model Payment {
   failedAt              DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
-
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order                 Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("payments")
 }
@@ -455,15 +405,11 @@ model OrderEvent {
   userId    String?
   ipAddress String?
   createdAt DateTime @default(now())
-
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("order_events")
 }
 
-// ============================================
-// SETTINGS MODEL
-// ============================================
 model Settings {
   id          String   @id @default(cuid())
   key         String   @unique
