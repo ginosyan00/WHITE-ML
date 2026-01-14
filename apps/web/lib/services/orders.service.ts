@@ -1,13 +1,7 @@
 import { db } from "@white-shop/db";
-
-function generateOrderNumber(): string {
-  const now = new Date();
-  const year = now.getFullYear().toString().slice(-2);
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const random = String(Math.floor(Math.random() * 10000)).padStart(5, "0");
-  return `${year}${month}${day}-${random}`;
-}
+import { paymentService } from "./payments/payment.service";
+import { PaymentGatewayType } from "../types/payments";
+import { generateOrderNumber } from "../utils/payments";
 
 class OrdersService {
   /**
@@ -22,7 +16,10 @@ class OrdersService {
         phone,
         shippingMethod = 'pickup',
         shippingAddress,
-        paymentMethod = 'idram',
+        paymentMethod = 'cash_on_delivery',
+        gatewayId,
+        gatewayType,
+        bankId,
       } = data;
 
       // Validate required fields
@@ -326,6 +323,42 @@ class OrdersService {
         return { order: newOrder, payment };
       });
 
+      // Initiate payment if payment method is not cash_on_delivery
+      let paymentUrl: string | null = null;
+      let paymentFormData: Record<string, string> | null = null;
+      let paymentFormAction: string | null = null;
+      let paymentFormMethod: "GET" | "POST" = "POST";
+
+      if (paymentMethod !== 'cash_on_delivery') {
+        try {
+          // Get base URL for callbacks
+          const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+          const host = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+          const baseUrl = `${protocol}://${host}`;
+
+          // Initiate payment using gatewayId or gatewayType
+          const paymentInit = await paymentService.initiatePayment({
+            orderId: order.order.id,
+            gatewayId: gatewayId,
+            gatewayType: gatewayType as PaymentGatewayType,
+            bankId: bankId,
+            returnUrl: `${baseUrl}/api/v1/payments/callback/success?orderId=${order.order.id}&paymentId=${order.payment.id}`,
+            cancelUrl: `${baseUrl}/api/v1/payments/callback/fail?orderId=${order.order.id}&paymentId=${order.payment.id}`,
+          });
+
+          if (paymentInit.success) {
+            paymentUrl = paymentInit.redirectUrl || null;
+            paymentFormData = paymentInit.formData || null;
+            paymentFormAction = paymentInit.formAction || null;
+            paymentFormMethod = paymentInit.formMethod || "POST";
+          }
+        } catch (paymentError: any) {
+          console.error("❌ [ORDERS SERVICE] Payment initiation error:", paymentError);
+          // Don't fail the order creation if payment initiation fails
+          // The order is created, but payment URL won't be available
+        }
+      }
+
       // Return order and payment info
       return {
         order: {
@@ -338,11 +371,16 @@ class OrdersService {
         },
         payment: {
           provider: order.payment.provider,
-          paymentUrl: null, // TODO: Generate payment URL for Idram/ArCa
+          paymentUrl,
+          formData: paymentFormData,
+          formAction: paymentFormAction,
+          formMethod: paymentFormMethod,
           expiresAt: null, // TODO: Set expiration if needed
         },
-        nextAction: paymentMethod === 'idram' || paymentMethod === 'arca' 
-          ? 'redirect_to_payment' 
+        nextAction: paymentMethod === 'cash_on_delivery'
+          ? 'view_order'
+          : paymentUrl || paymentFormData
+          ? 'redirect_to_payment'
           : 'view_order',
       };
     } catch (error: any) {

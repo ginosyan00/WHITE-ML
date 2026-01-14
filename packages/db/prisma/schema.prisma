@@ -316,21 +316,21 @@ model CartItem {
 }
 
 model Order {
-  id                String       @id @default(cuid())
-  number            String       @unique
+  id                String          @id @default(cuid())
+  number            String          @unique
   userId            String?
-  status            String       @default("pending")
-  paymentStatus     String       @default("pending")
-  fulfillmentStatus String       @default("unfulfilled")
+  status            String          @default("pending")
+  paymentStatus     String          @default("pending")
+  fulfillmentStatus String          @default("unfulfilled")
   subtotal          Float
-  discountAmount    Float        @default(0)
-  shippingAmount    Float        @default(0)
-  taxAmount         Float        @default(0)
+  discountAmount    Float           @default(0)
+  shippingAmount    Float           @default(0)
+  taxAmount         Float           @default(0)
   total             Float
-  currency          String       @default("AMD")
+  currency          String          @default("AMD")
   customerEmail     String?
   customerPhone     String?
-  customerLocale    String       @default("en")
+  customerLocale    String          @default("en")
   billingAddress    Json?
   shippingAddress   Json?
   shippingMethod    String?
@@ -339,19 +339,22 @@ model Order {
   adminNotes        String?
   ipAddress         String?
   userAgent         String?
+  paymentGatewayId  String?
   paidAt            DateTime?
   fulfilledAt       DateTime?
   cancelledAt       DateTime?
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
   events            OrderEvent[]
   items             OrderItem[]
-  user              User?        @relation(fields: [userId], references: [id])
+  user              User?           @relation(fields: [userId], references: [id])
   payments          Payment[]
+  paymentGateway    PaymentGateway? @relation(fields: [paymentGatewayId], references: [id])
 
   @@index([userId])
   @@index([status, createdAt(sort: Desc)])
   @@index([customerEmail])
+  @@index([paymentGatewayId])
   @@index([createdAt(sort: Desc)])
   @@map("orders")
 }
@@ -374,26 +377,38 @@ model OrderItem {
 }
 
 model Payment {
-  id                    String    @id @default(cuid())
+  id                    String           @id @default(cuid())
   orderId               String
+  paymentGatewayId      String?
   provider              String
   providerTransactionId String?
   method                String?
   amount                Float
-  currency              String    @default("AMD")
-  status                String    @default("pending")
+  currency              String           @default("AMD")
+  status                String           @default("pending")
   cardLast4             String?
   cardBrand             String?
   errorCode             String?
   errorMessage          String?
   providerResponse      Json?
-  idempotencyKey        String?
+  idempotencyKey        String?          @unique
+  retryCount            Int              @default(0)
+  maxRetries            Int              @default(3)
+  nextRetryAt           DateTime?
   completedAt           DateTime?
   failedAt              DateTime?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  order                 Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  order                 Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  paymentGateway        PaymentGateway?  @relation(fields: [paymentGatewayId], references: [id])
+  attempts              PaymentAttempt[]
 
+  @@index([orderId])
+  @@index([paymentGatewayId])
+  @@index([status])
+  @@index([providerTransactionId])
+  @@index([idempotencyKey])
+  @@index([createdAt(sort: Desc)])
   @@map("payments")
 }
 
@@ -420,4 +435,74 @@ model Settings {
 
   @@index([key])
   @@map("settings")
+}
+
+model PaymentGateway {
+  id              String              @id @default(cuid())
+  type            String // "idram" | "ameriabank" | "inecobank" | "arca"
+  bankId          String? // ArCa-ի համար բանկի ID (1-11)
+  name            String
+  enabled         Boolean             @default(false)
+  testMode        Boolean             @default(true)
+  config          Json // Gateway-specific configuration (encrypted passwords)
+  position        Int                 @default(0)
+  lastHealthCheck DateTime?
+  healthStatus    String? // "healthy" | "degraded" | "down"
+  healthMessage   String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  orders          Order[]
+  payments        Payment[]
+  webhookLogs     PaymentWebhookLog[]
+
+  @@unique([type, bankId])
+  @@index([enabled])
+  @@index([type])
+  @@index([testMode])
+  @@map("payment_gateways")
+}
+
+model PaymentAttempt {
+  id               String   @id @default(cuid())
+  paymentId        String
+  attemptNumber    Int
+  status           String // "pending" | "success" | "failed"
+  errorCode        String?
+  errorMessage     String?
+  providerResponse Json?
+  requestData      Json?
+  responseData     Json?
+  durationMs       Int?
+  createdAt        DateTime @default(now())
+  payment          Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("payment_attempts")
+}
+
+model PaymentWebhookLog {
+  id               String         @id @default(cuid())
+  paymentGatewayId String
+  paymentId        String?
+  eventType        String // "payment.completed" | "payment.failed" | "payment.pending"
+  payload          Json
+  headers          Json?
+  signature        String?
+  signatureValid   Boolean?
+  processed        Boolean        @default(false)
+  processingError  String?
+  ipAddress        String?
+  userAgent        String?
+  createdAt        DateTime       @default(now())
+  processedAt      DateTime?
+  paymentGateway   PaymentGateway @relation(fields: [paymentGatewayId], references: [id], onDelete: Cascade)
+
+  @@index([paymentGatewayId])
+  @@index([paymentId])
+  @@index([eventType])
+  @@index([processed])
+  @@index([createdAt(sort: Desc)])
+  @@map("payment_webhook_logs")
 }

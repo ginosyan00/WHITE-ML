@@ -51,6 +51,14 @@ REDIS_URL="redis://localhost:6379"
 
 ### Payment Gateways
 
+**Important:** Payment gateway configurations are stored encrypted in the database. The encryption key is required.
+
+```bash
+PAYMENT_ENCRYPTION_KEY="your-payment-encryption-key-min-32-chars"
+```
+
+**Note:** If `PAYMENT_ENCRYPTION_KEY` is not set, the system will fall back to `JWT_SECRET`. However, it's recommended to use a separate key for payment encryption.
+
 #### Idram
 ```bash
 IDRAM_MERCHANT_ID="your-idram-merchant-id"

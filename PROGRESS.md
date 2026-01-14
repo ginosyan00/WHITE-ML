@@ -195,6 +195,8 @@
 - ✅ Updated product page UI: color and size buttons now display stock counts relevant to the current selection (e.g., size button shows stock for selected color) for better UX and clarity
 - ✅ Improved admin product add/edit: added a Quick Color Selection palette and enhanced the Color Palette UI with cards, icons, and better visual states to match reference design
 - ✅ Automatic "Out of Stock" label: when a product becomes out of stock, the system automatically displays an "Out of Stock" label on product cards and single product pages. The label appears in the appropriate language (en/hy/ru/ka) and uses a gray color (#6B7280) for clear visibility. The label is added dynamically in the products service layer (findAll and findBySlug methods) and avoids duplication if a similar label already exists.
+- ✅ Payment Gateway Integration: Complete payment gateway system implemented with support for Idram, Ameriabank, Inecobank, and ArCa. Includes database schema (PaymentGateway, PaymentAttempt, PaymentWebhookLog), TypeScript services, API routes, Admin Panel UI, checkout integration, and AES-256-GCM encryption for sensitive configuration data.
+- ✅ Payment Gateway Testing & Documentation: Complete testing suite (unit tests, integration tests, webhook tests) and comprehensive documentation (API docs, configuration guide, webhook setup, troubleshooting guide, testing guide) created in `docs/` directory.
 
 ## Ամփոփում
 

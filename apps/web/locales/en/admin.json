@@ -2,6 +2,7 @@
   "menu": {
     "dashboard": "Dashboard",
     "orders": "Orders",
+    "payments": "Payments",
     "products": "Products",
     "categories": "Categories",
     "brands": "Brands",
@@ -619,6 +620,21 @@
       "totalCol": "Total",
       "noItemsFound": "No items found for this order"
     }
+  },
+  "payments": {
+    "title": "Payment Gateways",
+    "subtitle": "Manage payment gateway configurations",
+    "addGateway": "Add Gateway",
+    "addFirstGateway": "Add First Gateway",
+    "noGateways": "No payment gateways configured",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "testMode": "Test Mode",
+    "production": "Production",
+    "edit": "Edit",
+    "delete": "Delete",
+    "enable": "Enable",
+    "disable": "Disable"
   },
   "common": {
     "loading": "Loading...",

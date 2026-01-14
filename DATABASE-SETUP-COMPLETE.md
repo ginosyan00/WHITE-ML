@@ -136,3 +136,4 @@ npm run dev
 - Connection string-ը պետք է լինի մեկ տողում, առանց line breaks
 - `client_encoding=UTF8` պարամետրը ապահովում է հայերենի և այլ UTF-8 նիշերի ճիշտ ցուցադրումը
 
+

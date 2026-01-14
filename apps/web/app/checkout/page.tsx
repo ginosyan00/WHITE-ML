@@ -49,7 +49,7 @@ type CheckoutFormData = {
   email: string;
   phone: string;
   shippingMethod: 'pickup' | 'delivery';
-  paymentMethod: 'idram' | 'arca' | 'cash_on_delivery';
+  paymentMethod: string; // Can be 'cash_on_delivery' or gateway ID
   shippingAddress?: string;
   shippingCity?: string;
   shippingPostalCode?: string;
@@ -76,28 +76,59 @@ export default function CheckoutPage() {
   const [showCardModal, setShowCardModal] = useState(false);
   const [deliveryPrice, setDeliveryPrice] = useState<number | null>(null);
   const [loadingDeliveryPrice, setLoadingDeliveryPrice] = useState(false);
+  const [availableGateways, setAvailableGateways] = useState<Array<{
+    id: string;
+    type: string;
+    bankId?: string | null;
+    name: string;
+    testMode: boolean;
+    position: number;
+  }>>([]);
+  const [loadingGateways, setLoadingGateways] = useState(true);
 
-  // Payment methods configuration
-  const paymentMethods = [
-    {
-      id: 'cash_on_delivery' as const,
-      name: t('checkout.payment.cashOnDelivery'),
-      description: t('checkout.payment.cashOnDeliveryDescription'),
-      logo: null,
-    },
-    {
-      id: 'idram' as const,
-      name: t('checkout.payment.idram'),
-      description: t('checkout.payment.idramDescription'),
-      logo: '/assets/payments/idram.svg',
-    },
-    {
-      id: 'arca' as const,
-      name: t('checkout.payment.arca'),
-      description: t('checkout.payment.arcaDescription'),
-      logo: '/assets/payments/arca.svg',
-    },
-  ];
+  // Payment methods configuration - dynamic from API + cash on delivery
+  const paymentMethods = useMemo(() => {
+    const methods: Array<{
+      id: string;
+      name: string;
+      description: string;
+      logo: string | null;
+      gatewayId?: string;
+      gatewayType?: string;
+      bankId?: string;
+    }> = [
+      {
+        id: 'cash_on_delivery',
+        name: t('checkout.payment.cashOnDelivery'),
+        description: t('checkout.payment.cashOnDeliveryDescription'),
+        logo: null,
+      },
+    ];
+
+    // Add enabled gateways from API
+    availableGateways.forEach((gateway) => {
+      const gatewayName = gateway.name || 
+        (gateway.type === 'idram' ? t('checkout.payment.idram') :
+         gateway.type === 'arca' ? t('checkout.payment.arca') :
+         gateway.type === 'ameriabank' ? 'Ameriabank' :
+         gateway.type === 'inecobank' ? 'Inecobank' : gateway.type);
+
+      methods.push({
+        id: gateway.id, // Use gateway ID as payment method ID
+        name: gatewayName,
+        description: gateway.testMode 
+          ? `${gatewayName} (Test Mode)`
+          : gatewayName,
+        logo: gateway.type === 'idram' ? '/assets/payments/idram.svg' :
+              gateway.type === 'arca' ? '/assets/payments/arca.svg' : null,
+        gatewayId: gateway.id,
+        gatewayType: gateway.type,
+        bankId: gateway.bankId || undefined,
+      });
+    });
+
+    return methods;
+  }, [availableGateways, t]);
 
   // Create validation schema with translations
   const checkoutSchema = useMemo(() => z.object({
@@ -108,9 +139,7 @@ export default function CheckoutPage() {
     shippingMethod: z.enum(['pickup', 'delivery'], {
       message: t('checkout.errors.selectShippingMethod'),
     }),
-    paymentMethod: z.enum(['idram', 'arca', 'cash_on_delivery'], {
-      message: t('checkout.errors.selectPaymentMethod'),
-    }),
+    paymentMethod: z.string().min(1, t('checkout.errors.selectPaymentMethod')),
     // Shipping address fields - required only for delivery
     shippingAddress: z.string().optional(),
     shippingCity: z.string().optional(),
@@ -681,6 +710,9 @@ export default function CheckoutPage() {
         payment: {
           provider: string;
           paymentUrl: string | null;
+          formData?: Record<string, string> | null;
+          formAction?: string | null;
+          formMethod?: "GET" | "POST";
           expiresAt: string | null;
         };
         nextAction: string;
@@ -694,6 +726,12 @@ export default function CheckoutPage() {
         shippingMethod: data.shippingMethod,
         ...(shippingAddress ? { shippingAddress } : {}),
         paymentMethod: data.paymentMethod,
+        // Include gateway info if it's not cash_on_delivery
+        ...(data.paymentMethod !== 'cash_on_delivery' && {
+          gatewayId: paymentMethods.find(m => m.id === data.paymentMethod)?.gatewayId,
+          gatewayType: paymentMethods.find(m => m.id === data.paymentMethod)?.gatewayType,
+          bankId: paymentMethods.find(m => m.id === data.paymentMethod)?.bankId,
+        }),
       });
 
       console.log('[Checkout] Order created:', response.order.number);
@@ -702,6 +740,24 @@ export default function CheckoutPage() {
       if (!isLoggedIn) {
         localStorage.removeItem('shop_cart_guest');
         window.dispatchEvent(new Event('cart-updated'));
+      }
+
+      // If payment form data is provided, submit form to payment gateway (Idram)
+      if (response.payment?.formData && response.payment?.formAction) {
+        console.log('[Checkout] Submitting payment form to:', response.payment.formAction);
+        const form = document.createElement('form');
+        form.method = response.payment.formMethod || 'POST';
+        form.action = response.payment.formAction;
+        Object.entries(response.payment.formData).forEach(([key, value]) => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = value as string;
+          form.appendChild(input);
+        });
+        document.body.appendChild(form);
+        form.submit();
+        return;
       }
 
       // If payment URL is provided, redirect to payment gateway
@@ -961,7 +1017,7 @@ export default function CheckoutPage() {
                       {...register('paymentMethod')}
                       value={method.id}
                       checked={paymentMethod === method.id}
-                      onChange={(e) => setValue('paymentMethod', e.target.value as 'idram' | 'arca' | 'cash_on_delivery')}
+                      onChange={(e) => setValue('paymentMethod', e.target.value)}
                       className="mr-4"
                       disabled={isSubmitting}
                     />
