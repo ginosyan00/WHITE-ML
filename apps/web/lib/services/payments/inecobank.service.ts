@@ -26,9 +26,11 @@ export class InecobankPaymentService extends BasePaymentService {
   private failUrl?: string;
   private resultUrl?: string;
 
-  // Inecobank API endpoints (ADPG - Armenian Data Processing Group)
-  private readonly API_BASE_URL = "https://ipay.arca.am";
-  private readonly TEST_API_BASE_URL = "https://testipay.arca.am";
+  // Inecobank API endpoints
+  // Production: https://pg.inecoecom.am
+  // Test: Same URL, but uses test credentials
+  private readonly API_BASE_URL = "https://pg.inecoecom.am";
+  private readonly API_PATH = "/payment/rest";
 
   constructor(config: InecobankConfig, testMode: boolean = true) {
     super(config, testMode, "inecobank");
@@ -55,52 +57,140 @@ export class InecobankPaymentService extends BasePaymentService {
         );
       }
 
-      // Validate currency
-      if (!this.validateCurrency(order.currency, ["AMD", "USD", "EUR", "RUB"])) {
+      // Validate currency (only AMD supported)
+      if (order.currency !== "AMD") {
         return this.createErrorResponse(
           "INVALID_CURRENCY",
-          `Currency ${order.currency} is not supported`
+          `Only AMD currency is supported. Received: ${order.currency}`
         );
       }
 
-      // Get account credentials for currency
-      const account = this.accounts[order.currency];
+      // Get AMD account credentials
+      const account = this.accounts.AMD;
       if (!account || !account.username || !account.password) {
         return this.createErrorResponse(
           "MISSING_ACCOUNT",
-          `Account credentials not configured for currency ${order.currency}`
+          "AMD account credentials not configured"
+        );
+      }
+
+      // Validate and sanitize order number
+      if (!order.orderNumber || order.orderNumber.trim().length === 0) {
+        return this.createErrorResponse(
+          "INVALID_ORDER_NUMBER",
+          "Order number is required"
+        );
+      }
+
+      // Validate amount is positive number
+      if (isNaN(order.amount) || order.amount <= 0) {
+        return this.createErrorResponse(
+          "INVALID_AMOUNT",
+          "Payment amount must be a positive number"
+        );
+      }
+
+      // Validate URLs are secure (HTTPS)
+      const returnUrl = this.successUrl || order.returnUrl;
+      const failUrl = this.failUrl || order.cancelUrl;
+      
+      if (returnUrl && !returnUrl.startsWith("https://")) {
+        return this.createErrorResponse(
+          "INVALID_URL",
+          "Return URL must use HTTPS"
+        );
+      }
+      
+      if (failUrl && !failUrl.startsWith("https://")) {
+        return this.createErrorResponse(
+          "INVALID_URL",
+          "Fail URL must use HTTPS"
         );
       }
 
       // Prepare payment request
-      const apiUrl = this.testMode
-        ? `${this.TEST_API_BASE_URL}/payment/rest/register.do`
-        : `${this.API_BASE_URL}/payment/rest/register.do`;
+      // Note: Inecobank uses the same URL for test and production
+      // Test mode is determined by using test credentials
+      const apiUrl = `${this.API_BASE_URL}${this.API_PATH}/register.do`;
+
+      // Calculate amount in minor units (cents/kopecks)
+      // Ensure proper rounding to avoid floating point issues
+      const amountInMinorUnits = Math.round(order.amount * 100);
+      
+      if (amountInMinorUnits <= 0) {
+        return this.createErrorResponse(
+          "INVALID_AMOUNT",
+          "Payment amount must be greater than 0"
+        );
+      }
 
       const requestData = {
         userName: account.username,
         password: account.password,
-        orderNumber: order.orderNumber,
-        amount: Math.round(order.amount * 100), // Amount in minor units (cents/kopecks)
+        orderNumber: order.orderNumber.trim(),
+        amount: amountInMinorUnits,
         currency: this.getCurrencyCode(order.currency),
-        returnUrl: this.successUrl || order.returnUrl,
-        failUrl: this.failUrl || order.cancelUrl,
-        description: order.description || `Order ${order.orderNumber}`,
+        returnUrl: returnUrl,
+        failUrl: failUrl,
+        description: (order.description || `Order ${order.orderNumber}`).substring(0, 512), // Limit description length
       };
 
       // Call register.do API
-      const response = await this.postRequest<any>(apiUrl, requestData);
+      // Inecobank expects form-urlencoded format (not JSON)
+      const response = await this.postRequest<any>(apiUrl, requestData, {}, true);
+
+      // Validate response structure
+      if (!response || typeof response !== "object") {
+        return this.createErrorResponse(
+          "INVALID_RESPONSE",
+          "Invalid response format from payment gateway"
+        );
+      }
 
       // Check response
-      if (response.errorCode === "0" && response.formUrl) {
+      // errorCode "0" means success
+      if (response.errorCode === "0" || response.errorCode === 0) {
+        // Validate required fields
+        if (!response.formUrl) {
+          return this.createErrorResponse(
+            "MISSING_FORM_URL",
+            "Payment gateway did not return form URL"
+          );
+        }
+
+        if (!response.orderId) {
+          return this.createErrorResponse(
+            "MISSING_ORDER_ID",
+            "Payment gateway did not return order ID"
+          );
+        }
+
+        // Validate formUrl is HTTPS
+        if (!response.formUrl.startsWith("https://")) {
+          this.logError(
+            new Error("Form URL is not secure (HTTPS)"),
+            { formUrl: response.formUrl, orderId: order.orderId }
+          );
+        }
+
         return this.createSuccessResponse(
-          response.orderId,
-          response.orderId,
+          String(response.orderId),
+          String(response.orderId),
           response.formUrl
         );
       } else {
+        // Log error details for debugging
+        this.logError(
+          new Error(`Payment initiation failed: ${response.errorCode || "Unknown"}`),
+          {
+            orderId: order.orderId,
+            errorCode: response.errorCode,
+            errorMessage: response.errorMessage,
+          }
+        );
+
         return this.createErrorResponse(
-          response.errorCode || "PAYMENT_ERROR",
+          String(response.errorCode || "PAYMENT_ERROR"),
           response.errorMessage || "Failed to initiate payment"
         );
       }
@@ -126,8 +216,17 @@ export class InecobankPaymentService extends BasePaymentService {
       // Full verification is done by calling getOrderStatusExtended.do API after receiving callback
       const requiredFields = ["orderNumber", "status", "action"];
 
-      // For callback from gateway, check if paymentID and currency are present
-      if (payload.paymentID && payload.currency) {
+      // For callback from gateway, check if paymentID (or orderId) and currency are present
+      const paymentId = payload.paymentID || payload.orderId;
+      if (paymentId && payload.currency) {
+        // Validate paymentID format (should be alphanumeric)
+        if (typeof paymentId !== "string" || paymentId.trim().length === 0) {
+          return {
+            valid: false,
+            error: "Invalid payment ID format",
+          };
+        }
+        
         // This is a callback - verify by calling API
         return {
           valid: true,
@@ -220,9 +319,13 @@ export class InecobankPaymentService extends BasePaymentService {
         throw new Error("No account credentials configured");
       }
 
-      const apiUrl = this.testMode
-        ? `${this.TEST_API_BASE_URL}/payment/rest/getOrderStatusExtended.do`
-        : `${this.API_BASE_URL}/payment/rest/getOrderStatusExtended.do`;
+      // Validate transaction ID
+      if (!transactionId || transactionId.trim().length === 0) {
+        throw new Error("Transaction ID is required");
+      }
+
+      // Inecobank uses the same URL for test and production
+      const apiUrl = `${this.API_BASE_URL}${this.API_PATH}/getOrderStatusExtended.do`;
 
       const requestData = {
         userName: account.username,
@@ -230,10 +333,25 @@ export class InecobankPaymentService extends BasePaymentService {
         orderId: transactionId,
       };
 
-      const response = await this.postRequest<any>(apiUrl, requestData);
+      // Inecobank expects form-urlencoded format (not JSON)
+      const response = await this.postRequest<any>(apiUrl, requestData, {}, true);
 
-      if (response.errorCode === "0") {
+      // Validate response structure
+      if (!response || typeof response !== "object") {
+        this.logError(
+          new Error("Invalid response format from getOrderStatusExtended"),
+          { transactionId }
+        );
+        return "failed";
+      }
+
+      if (response.errorCode === "0" || response.errorCode === 0) {
         const status = response.orderStatus;
+        
+        // Order status codes:
+        // 0 = pending/registered
+        // 1 = completed/paid
+        // 2 = failed/cancelled
         if (status === 1 || status === "1") {
           return "completed";
         } else if (status === 2 || status === "2") {
@@ -242,6 +360,10 @@ export class InecobankPaymentService extends BasePaymentService {
           return "pending";
         }
       } else {
+        this.logError(
+          new Error(`getOrderStatusExtended failed: ${response.errorCode}`),
+          { transactionId, errorCode: response.errorCode, errorMessage: response.errorMessage }
+        );
         return "failed";
       }
     } catch (error) {

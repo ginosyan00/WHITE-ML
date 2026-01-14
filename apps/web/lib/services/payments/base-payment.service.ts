@@ -238,6 +238,45 @@ export abstract class BasePaymentService {
   }
 
   /**
+   * Validate URL is secure (HTTPS) and from allowed domains
+   * 
+   * @param url - URL to validate
+   * @param allowedDomains - Array of allowed domain patterns
+   * @returns True if valid
+   */
+  protected validateSecureUrl(
+    url: string,
+    allowedDomains: string[] = []
+  ): boolean {
+    try {
+      const urlObj = new URL(url);
+      
+      // Must use HTTPS
+      if (urlObj.protocol !== "https:") {
+        return false;
+      }
+      
+      // If allowed domains specified, check against them
+      if (allowedDomains.length > 0) {
+        const hostname = urlObj.hostname;
+        const isAllowed = allowedDomains.some(domain => {
+          // Support exact match or subdomain match
+          return hostname === domain || hostname.endsWith(`.${domain}`);
+        });
+        
+        if (!isAllowed) {
+          return false;
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      this.logError(error, { url, context: "URL validation failed" });
+      return false;
+    }
+  }
+
+  /**
    * Make HTTP request with error handling
    * 
    * @param url - Request URL
@@ -250,11 +289,19 @@ export abstract class BasePaymentService {
   ): Promise<T> {
     const startTime = Date.now();
     
+    // Validate URL is secure
+    if (!this.validateSecureUrl(url)) {
+      throw new Error(`Invalid or insecure URL: ${url}. Only HTTPS URLs are allowed.`);
+    }
+    
     try {
       const response = await fetch(url, {
         ...options,
         headers: {
-          "Content-Type": "application/json",
+          // Only set Content-Type if not already set (for form-urlencoded requests)
+          ...(options.headers && !(options.headers as Record<string, string>)["Content-Type"]
+            ? { "Content-Type": "application/json" }
+            : {}),
           ...options.headers,
         },
       });
@@ -268,7 +315,33 @@ export abstract class BasePaymentService {
         );
       }
 
-      const data = await response.json();
+      // Try to parse as JSON first, fallback to text if needed
+      let data: T;
+      const contentType = response.headers.get("content-type") || "";
+      
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else if (contentType.includes("application/x-www-form-urlencoded") || contentType.includes("text/")) {
+        // Some gateways return form-urlencoded or text responses
+        const text = await response.text();
+        try {
+          // Try to parse as JSON (some gateways return JSON as text)
+          data = JSON.parse(text);
+        } catch {
+          // If not JSON, try to parse as URL-encoded form data
+          const params = new URLSearchParams(text);
+          const parsed: any = {};
+          params.forEach((value, key) => {
+            // Try to parse numeric values
+            const numValue = Number(value);
+            parsed[key] = isNaN(numValue) ? value : numValue;
+          });
+          data = parsed as T;
+        }
+      } else {
+        // Default: try JSON
+        data = await response.json();
+      }
       
       this.logAttempt({
         attemptNumber: 1,
@@ -291,17 +364,41 @@ export abstract class BasePaymentService {
    * @param url - Request URL
    * @param data - Request body data
    * @param options - Additional fetch options
+   * @param useFormUrlEncoded - Use form-urlencoded format instead of JSON (default: false)
    * @returns Response data
    */
   protected async postRequest<T = any>(
     url: string,
     data: Record<string, any>,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    useFormUrlEncoded: boolean = false
   ): Promise<T> {
+    let body: string;
+    let contentType: string;
+    
+    if (useFormUrlEncoded) {
+      // Convert to form-urlencoded format
+      const formData = new URLSearchParams();
+      Object.entries(data).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) {
+          formData.append(key, String(value));
+        }
+      });
+      body = formData.toString();
+      contentType = "application/x-www-form-urlencoded; charset=UTF-8";
+    } else {
+      body = JSON.stringify(data);
+      contentType = "application/json";
+    }
+    
     return this.makeRequest<T>(url, {
       method: "POST",
-      body: JSON.stringify(data),
+      body,
       ...options,
+      headers: {
+        "Content-Type": contentType,
+        ...options.headers,
+      },
     });
   }
 

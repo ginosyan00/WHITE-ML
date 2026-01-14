@@ -62,20 +62,20 @@ export class ArcaPaymentService extends BasePaymentService {
         );
       }
 
-      // Validate currency
-      if (!this.validateCurrency(order.currency, ["AMD", "USD", "EUR", "RUB"])) {
+      // Validate currency (only AMD supported)
+      if (order.currency !== "AMD") {
         return this.createErrorResponse(
           "INVALID_CURRENCY",
-          `Currency ${order.currency} is not supported`
+          `Only AMD currency is supported. Received: ${order.currency}`
         );
       }
 
-      // Get account credentials for currency
-      const account = this.accounts[order.currency];
+      // Get AMD account credentials
+      const account = this.accounts.AMD;
       if (!account || !account.username || !account.password) {
         return this.createErrorResponse(
           "MISSING_ACCOUNT",
-          `Account credentials not configured for currency ${order.currency}`
+          "AMD account credentials not configured"
         );
       }
 
@@ -105,7 +105,8 @@ export class ArcaPaymentService extends BasePaymentService {
       };
 
       // Call register.do API
-      const response = await this.postRequest<any>(apiUrl, requestData);
+      // ArCa expects form-urlencoded format (not JSON)
+      const response = await this.postRequest<any>(apiUrl, requestData, {}, true);
 
       // Check response
       if (response.errorCode === "0" && response.formUrl) {
@@ -253,7 +254,8 @@ export class ArcaPaymentService extends BasePaymentService {
         orderId: transactionId,
       };
 
-      const response = await this.postRequest<any>(apiUrl, requestData);
+      // ArCa expects form-urlencoded format (not JSON)
+      const response = await this.postRequest<any>(apiUrl, requestData, {}, true);
 
       if (response.errorCode === "0") {
         const status = response.orderStatus;

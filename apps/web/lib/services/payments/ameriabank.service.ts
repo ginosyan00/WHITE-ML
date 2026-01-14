@@ -31,8 +31,11 @@ export class AmeriabankPaymentService extends BasePaymentService {
   private resultUrl?: string;
 
   // Ameriabank API endpoints
-  private readonly API_BASE_URL = "https://api.ameriabank.am";
-  private readonly TEST_API_BASE_URL = "https://testapi.ameriabank.am";
+  // Production: https://services.ameriabank.am
+  // Test: https://servicestest.ameriabank.am
+  private readonly API_BASE_URL = "https://services.ameriabank.am";
+  private readonly TEST_API_BASE_URL = "https://servicestest.ameriabank.am";
+  private readonly API_PATH = "/VPOS/api/VPOS";
 
   constructor(config: AmeriabankConfig, testMode: boolean = true) {
     super(config, testMode, "ameriabank");
@@ -62,20 +65,20 @@ export class AmeriabankPaymentService extends BasePaymentService {
         );
       }
 
-      // Validate currency
-      if (!this.validateCurrency(order.currency, ["AMD", "USD", "EUR", "RUB"])) {
+      // Validate currency (only AMD supported)
+      if (order.currency !== "AMD") {
         return this.createErrorResponse(
           "INVALID_CURRENCY",
-          `Currency ${order.currency} is not supported`
+          `Only AMD currency is supported. Received: ${order.currency}`
         );
       }
 
-      // Get account credentials for currency
-      const account = this.accounts[order.currency];
+      // Get AMD account credentials
+      const account = this.accounts.AMD;
       if (!account || !account.username || !account.password) {
         return this.createErrorResponse(
           "MISSING_ACCOUNT",
-          `Account credentials not configured for currency ${order.currency}`
+          "AMD account credentials not configured"
         );
       }
 
@@ -92,28 +95,88 @@ export class AmeriabankPaymentService extends BasePaymentService {
 
       // Prepare payment request
       const apiUrl = this.testMode 
-        ? `${this.TEST_API_BASE_URL}/InitPayment`
-        : `${this.API_BASE_URL}/InitPayment`;
+        ? `${this.TEST_API_BASE_URL}${this.API_PATH}/InitPayment`
+        : `${this.API_BASE_URL}${this.API_PATH}/InitPayment`;
+
+      // Validate and sanitize order number
+      if (!order.orderNumber || order.orderNumber.trim().length === 0) {
+        return this.createErrorResponse(
+          "INVALID_ORDER_NUMBER",
+          "Order number is required"
+        );
+      }
+
+      // Validate amount is positive number
+      if (isNaN(order.amount) || order.amount <= 0) {
+        return this.createErrorResponse(
+          "INVALID_AMOUNT",
+          "Payment amount must be a positive number"
+        );
+      }
+
+      // Validate URLs are secure (HTTPS)
+      const backUrl = this.successUrl || order.returnUrl;
+      const failUrl = this.failUrl || order.cancelUrl;
+      
+      if (backUrl && !backUrl.startsWith("https://")) {
+        return this.createErrorResponse(
+          "INVALID_URL",
+          "Return URL must use HTTPS"
+        );
+      }
+      
+      if (failUrl && !failUrl.startsWith("https://")) {
+        return this.createErrorResponse(
+          "INVALID_URL",
+          "Fail URL must use HTTPS"
+        );
+      }
 
       const requestData = {
         ClientID: this.clientID,
         Username: account.username,
         Password: account.password,
-        OrderID: order.orderNumber,
-        Amount: order.amount,
+        OrderID: order.orderNumber.trim(),
+        Amount: Number(order.amount.toFixed(2)), // Ensure 2 decimal places
         Currency: order.currency,
-        Description: order.description || `Order ${order.orderNumber}`,
-        BackURL: this.successUrl || order.returnUrl,
-        FailURL: this.failUrl || order.cancelUrl,
+        Description: (order.description || `Order ${order.orderNumber}`).substring(0, 255), // Limit description length
+        BackURL: backUrl,
+        FailURL: failUrl,
       };
 
       // Call InitPayment API
-      const response = await this.postRequest<any>(apiUrl, requestData);
+      // Ameriabank expects form-urlencoded format (not JSON)
+      const response = await this.postRequest<any>(apiUrl, requestData, {}, true);
 
-      // Check response
-      if (response.ResponseCode === "00" && response.PaymentID) {
-        // Get redirect URL
-        const redirectUrl = response.PaymentURL || response.FormURL;
+      // Validate response structure
+      if (!response || typeof response !== "object") {
+        return this.createErrorResponse(
+          "INVALID_RESPONSE",
+          "Invalid response format from payment gateway"
+        );
+      }
+
+      // Ameriabank uses ResponseCode == 1 for successful registration
+      // ResponseCode == "00" is used for payment completion
+      if (response.ResponseCode === 1 && response.PaymentID) {
+        // Build redirect URL to payment page
+        // Format: https://services[test].ameriabank.am/VPOS/Payments/Pay?id={PaymentID}&lang={lang}
+        const paymentBaseUrl = this.testMode 
+          ? this.TEST_API_BASE_URL
+          : this.API_BASE_URL;
+        
+        // Determine language code (hy -> am for Armenian)
+        const lang = order.metadata?.language === "hy" ? "am" : (order.metadata?.language || "en");
+        
+        const redirectUrl = `${paymentBaseUrl}/VPOS/Payments/Pay?id=${response.PaymentID}&lang=${lang}`;
+
+        // Validate PaymentID format (should be UUID)
+        if (!/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(response.PaymentID)) {
+          this.logError(
+            new Error("Invalid PaymentID format"),
+            { paymentID: response.PaymentID, orderId: order.orderId }
+          );
+        }
 
         return this.createSuccessResponse(
           response.PaymentID,
@@ -121,8 +184,18 @@ export class AmeriabankPaymentService extends BasePaymentService {
           redirectUrl
         );
       } else {
+        // Log error details for debugging
+        this.logError(
+          new Error(`Payment initiation failed: ${response.ResponseCode || "Unknown"}`),
+          {
+            orderId: order.orderId,
+            responseCode: response.ResponseCode,
+            responseMessage: response.ResponseMessage,
+          }
+        );
+
         return this.createErrorResponse(
-          response.ResponseCode || "PAYMENT_ERROR",
+          String(response.ResponseCode || "PAYMENT_ERROR"),
           response.ResponseMessage || "Failed to initiate payment"
         );
       }
@@ -203,10 +276,16 @@ export class AmeriabankPaymentService extends BasePaymentService {
         }
       }
 
-      // ResponseCode "00" means success
-      if (responseCode === "00") {
+      // ResponseCode "00" means payment success
+      // Validate responseCode format
+      if (responseCode === "00" || responseCode === 0) {
         return "completed";
       } else {
+        // Log failed payment
+        this.logError(
+          new Error(`Payment failed with response code: ${responseCode}`),
+          { paymentID, responseCode, orderId: payload.OrderID }
+        );
         return "failed";
       }
     } catch (error) {
@@ -228,22 +307,49 @@ export class AmeriabankPaymentService extends BasePaymentService {
         throw new Error("No account credentials configured");
       }
 
+      // Validate transaction ID
+      if (!transactionId || transactionId.trim().length === 0) {
+        throw new Error("Transaction ID is required");
+      }
+
       const apiUrl = this.testMode
-        ? `${this.TEST_API_BASE_URL}/GetPaymentDetails`
-        : `${this.API_BASE_URL}/GetPaymentDetails`;
+        ? `${this.TEST_API_BASE_URL}${this.API_PATH}/GetPaymentDetails`
+        : `${this.API_BASE_URL}${this.API_PATH}/GetPaymentDetails`;
 
       const requestData = {
-        ClientID: this.clientID,
         Username: account.username,
         Password: account.password,
-        PaymentID: transactionId,
+        paymentID: transactionId.trim(), // Note: lowercase 'p' in paymentID for GetPaymentDetails
       };
 
-      const response = await this.postRequest<any>(apiUrl, requestData);
+      // Ameriabank expects form-urlencoded format (not JSON)
+      const response = await this.postRequest<any>(apiUrl, requestData, {}, true);
 
-      if (response.ResponseCode === "00") {
-        return response.Status === "Completed" ? "completed" : "pending";
+      // Validate response structure
+      if (!response || typeof response !== "object") {
+        this.logError(
+          new Error("Invalid response format from GetPaymentDetails"),
+          { transactionId }
+        );
+        return "failed";
+      }
+
+      // ResponseCode "00" means success
+      if (response.ResponseCode === "00" || response.ResponseCode === 0) {
+        // Check payment state
+        const paymentState = response.paymentAmountInfo?.paymentState || response.Status;
+        if (paymentState === "Completed" || paymentState === "COMPLETED") {
+          return "completed";
+        } else if (paymentState === "Failed" || paymentState === "FAILED") {
+          return "failed";
+        } else {
+          return "pending";
+        }
       } else {
+        this.logError(
+          new Error(`GetPaymentDetails failed: ${response.ResponseCode}`),
+          { transactionId, responseCode: response.ResponseCode }
+        );
         return "failed";
       }
     } catch (error) {

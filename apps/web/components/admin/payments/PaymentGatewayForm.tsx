@@ -125,10 +125,21 @@ export function PaymentGatewayForm({ gateway, onSave, onCancel, loading = false 
       if (!ameriabankConfig.clientID) {
         newErrors.config = 'Client ID is required';
       }
+      if (!ameriabankConfig.accounts?.AMD?.username || !ameriabankConfig.accounts?.AMD?.password) {
+        newErrors.config = 'AMD account username and password are required';
+      }
+    } else if (formData.type === 'inecobank') {
+      const inecobankConfig = formData.config as InecobankConfig;
+      if (!inecobankConfig.accounts?.AMD?.username || !inecobankConfig.accounts?.AMD?.password) {
+        newErrors.config = 'AMD account username and password are required';
+      }
     } else if (formData.type === 'arca') {
       const arcaConfig = formData.config as ArcaConfig;
       if (!arcaConfig.bankId) {
         newErrors.config = 'Bank ID is required';
+      }
+      if (!arcaConfig.accounts?.AMD?.username || !arcaConfig.accounts?.AMD?.password) {
+        newErrors.config = 'AMD account username and password are required';
       }
     }
 
@@ -235,23 +246,6 @@ export function PaymentGatewayForm({ gateway, onSave, onCancel, loading = false 
           />
           <span className="text-sm text-gray-700">Test Mode</span>
         </label>
-      </div>
-
-      {/* Position */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Position
-        </label>
-        <input
-          type="number"
-          value={formData.position}
-          onChange={(e) => setFormData({ ...formData, position: parseInt(e.target.value) || 0 })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-          min="0"
-        />
-        <p className="mt-1 text-xs text-gray-500">
-          Lower numbers appear first in the list
-        </p>
       </div>
 
       {/* Error Message */}
