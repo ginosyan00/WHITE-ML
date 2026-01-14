@@ -310,13 +310,62 @@ function InecobankFormFields({ config, onChange }: { config: InecobankConfig; on
 
 // ArCa Form Fields
 function ArcaFormFields({ config, onChange }: { config: ArcaConfig; onChange: (config: ArcaConfig) => void }) {
-  const updateAMDAccount = (field: 'username' | 'password', value: string) => {
+  const updateAccount = (currency: 'AMD' | 'USD' | 'EUR' | 'RUB', field: 'username' | 'password', value: string) => {
     const accounts = { ...config.accounts };
-    if (!accounts.AMD) {
-      accounts.AMD = { username: '', password: '' };
+    if (!accounts[currency]) {
+      accounts[currency] = { username: '', password: '' };
     }
-    accounts.AMD = { ...accounts.AMD, [field]: value };
+    accounts[currency] = { ...accounts[currency]!, [field]: value };
     onChange({ ...config, accounts });
+  };
+
+  const CurrencyAccountFields = ({ currency, label }: { currency: 'AMD' | 'USD' | 'EUR' | 'RUB'; label: string }) => {
+    const isRequired = currency === 'AMD';
+    return (
+      <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          {label} Account Credentials {isRequired && <span className="text-red-500">*</span>}
+        </h3>
+        <p className="text-xs text-gray-600 mb-4">
+          Test Mode ON → օգտագործվում են test credentials<br/>
+          Test Mode OFF → օգտագործվում են production credentials
+        </p>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Username {isRequired && <span className="text-red-500">*</span>} <span className="text-xs font-normal text-gray-500">(Merchant ID / Test ID)</span>
+            </label>
+            <input
+              type="text"
+              value={config.accounts?.[currency]?.username || ''}
+              onChange={(e) => updateAccount(currency, 'username', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              placeholder={`ArCa-ից ստացած ${label} Merchant ID`}
+              required={isRequired}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Test-ի համար → test merchant ID, Production-ի համար → production merchant ID
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Password {isRequired && <span className="text-red-500">*</span>} <span className="text-xs font-normal text-gray-500">(Secret Key)</span>
+            </label>
+            <input
+              type="password"
+              value={config.accounts?.[currency]?.password || ''}
+              onChange={(e) => updateAccount(currency, 'password', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              placeholder={`ArCa-ից ստացած ${label} Secret Key`}
+              required={isRequired}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Test-ի համար → test secret key, Production-ի համար → production secret key
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -330,47 +379,16 @@ function ArcaFormFields({ config, onChange }: { config: ArcaConfig; onChange: (c
         <p className="mt-2 text-xs text-gray-500">Ընտրեք բանկը, որի համար կարգավորում եք gateway-ն</p>
       </div>
 
-      <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">AMD Account Credentials</h3>
-        <p className="text-xs text-gray-600 mb-4">
-          Test Mode ON → օգտագործվում են test credentials<br/>
-          Test Mode OFF → օգտագործվում են production credentials
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+        <p className="text-sm text-gray-700">
+          <strong>Նշում:</strong> AMD account-ը պարտադիր է: USD, EUR, RUB accounts-ները optional են և կարող են ավելացվել, եթե անհրաժեշտ է multi-currency support:
         </p>
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Username * <span className="text-xs font-normal text-gray-500">(Merchant ID / Test ID)</span>
-            </label>
-            <input
-              type="text"
-              value={config.accounts?.AMD?.username || ''}
-              onChange={(e) => updateAMDAccount('username', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              placeholder="ArCa-ից ստացած Merchant ID"
-              required
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Test-ի համար → test merchant ID (test ID), Production-ի համար → production merchant ID
-            </p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password * <span className="text-xs font-normal text-gray-500">(Secret Key)</span>
-            </label>
-            <input
-              type="password"
-              value={config.accounts?.AMD?.password || ''}
-              onChange={(e) => updateAMDAccount('password', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              placeholder="ArCa-ից ստացած Secret Key"
-              required
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Test-ի համար → test secret key, Production-ի համար → production secret key
-            </p>
-          </div>
-        </div>
       </div>
+
+      <CurrencyAccountFields currency="AMD" label="AMD" />
+      <CurrencyAccountFields currency="USD" label="USD" />
+      <CurrencyAccountFields currency="EUR" label="EUR" />
+      <CurrencyAccountFields currency="RUB" label="RUB" />
 
       <div className="border border-gray-200 rounded-lg p-4 bg-yellow-50">
         <label className="block text-sm font-medium text-gray-700 mb-1">

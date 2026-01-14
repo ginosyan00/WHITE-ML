@@ -67,10 +67,25 @@ IDRAM_PUBLIC_KEY="your-idram-public-key"
 ```
 
 #### ArCa
-```bash
-ARCA_MERCHANT_ID="your-arca-merchant-id"
-ARCA_API_KEY="your-arca-api-key"
-```
+**Note:** ArCa configuration is stored in the database (encrypted), not in environment variables.
+
+ArCa uses username/password authentication (not API keys). Configure ArCa gateway through the admin panel at `/admin/payments`:
+
+**Required:**
+- Bank ID (select from dropdown)
+- AMD Account: Username + Password (at minimum)
+
+**Optional:**
+- USD Account: Username + Password
+- EUR Account: Username + Password  
+- RUB Account: Username + Password
+- Test Port (default: 8443)
+
+**How to Get Credentials:**
+1. Contact your bank's merchant services (ACBA, Ardshinbank, Evoca, etc.)
+2. Complete merchant registration
+3. Receive account credentials (username/password) for each currency
+4. Configure in admin panel at `/admin/payments`
 
 ### Email (SMTP)
 ```bash

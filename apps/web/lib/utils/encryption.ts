@@ -186,3 +186,4 @@ export function isEncrypted(text: string): boolean {
   return parts.length === 4 && parts.every((part) => /^[0-9a-f]+$/i.test(part));
 }
 
+
