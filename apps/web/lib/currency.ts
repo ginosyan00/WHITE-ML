@@ -11,7 +11,7 @@ export type CurrencyCode = keyof typeof CURRENCIES;
 const CURRENCY_STORAGE_KEY = 'shop_currency';
 
 export function getStoredCurrency(): CurrencyCode {
-  if (typeof window === 'undefined') return 'USD';
+  if (typeof window === 'undefined') return 'AMD'; // Default to AMD (base currency)
   try {
     const stored = localStorage.getItem(CURRENCY_STORAGE_KEY);
     if (stored && stored in CURRENCIES) {
@@ -20,7 +20,7 @@ export function getStoredCurrency(): CurrencyCode {
   } catch {
     // Ignore errors
   }
-  return 'USD';
+  return 'AMD'; // Default to AMD (base currency)
 }
 
 export function setStoredCurrency(currency: CurrencyCode): void {
@@ -33,9 +33,30 @@ export function setStoredCurrency(currency: CurrencyCode): void {
   }
 }
 
-export function formatPrice(price: number, currency: CurrencyCode = 'USD'): string {
+/**
+ * Format price for display
+ * IMPORTANT: Prices in database are stored in AMD (base currency)
+ * @param price - Price in AMD (from database)
+ * @param currency - Target currency for display
+ * @returns Formatted price string
+ */
+export function formatPrice(price: number, currency: CurrencyCode = 'AMD'): string {
   const currencyInfo = CURRENCIES[currency];
-  const convertedPrice = price * currencyInfo.rate;
+  
+  // Prices in database are stored in AMD (base currency)
+  // If displaying in AMD, use price as-is
+  // If displaying in other currency, convert from AMD
+  let convertedPrice: number;
+  
+  if (currency === 'AMD') {
+    // Price is already in AMD, no conversion needed
+    convertedPrice = price;
+  } else {
+    // Convert from AMD (base) to target currency
+    // First convert AMD to USD, then to target currency
+    const usdPrice = price / CURRENCIES.AMD.rate; // AMD to USD
+    convertedPrice = usdPrice * currencyInfo.rate; // USD to target currency
+  }
   
   // Show all currencies without decimals (remove .00)
   const minimumFractionDigits = 0;

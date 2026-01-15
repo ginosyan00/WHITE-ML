@@ -285,7 +285,7 @@ function AddProductPageContent() {
   const [colorMessage, setColorMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [sizeMessage, setSizeMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [selectedAttributeId, setSelectedAttributeId] = useState<string | null>(null);
-  const [priceInputCurrency, setPriceInputCurrency] = useState<CurrencyCode>('USD');
+  const [priceInputCurrency, setPriceInputCurrency] = useState<CurrencyCode>('AMD');
   const [newAttributeName, setNewAttributeName] = useState('');
   const [addingAttribute, setAddingAttribute] = useState(false);
   const [newAttributeValue, setNewAttributeValue] = useState('');
@@ -1997,13 +1997,23 @@ function AddProductPageContent() {
       const variants: any[] = [];
       
       formData.variants.forEach((variant) => {
+        // Convert price from input currency to AMD (base currency)
+        let basePrice = parseFloat(variant.price || '0');
+        if (priceInputCurrency !== 'AMD' && basePrice > 0) {
+          basePrice = convertPrice(basePrice, priceInputCurrency, 'AMD');
+        }
+        
         const baseVariantData: any = {
-          price: parseFloat(variant.price || '0'),
+          price: basePrice,
           published: true,
         };
 
         if (variant.compareAtPrice) {
-          baseVariantData.compareAtPrice = parseFloat(variant.compareAtPrice);
+          let comparePrice = parseFloat(variant.compareAtPrice);
+          if (priceInputCurrency !== 'AMD' && comparePrice > 0) {
+            comparePrice = convertPrice(comparePrice, priceInputCurrency, 'AMD');
+          }
+          baseVariantData.compareAtPrice = comparePrice;
         }
 
         // Получаем цвета из новой структуры ColorData
@@ -2053,11 +2063,16 @@ function AddProductPageContent() {
               
               // Используем цену размера, если указана, иначе цену цвета, иначе цену варианта
               const sizePrice = colorData.sizePrices?.[size];
-              const finalPrice = sizePrice && sizePrice.trim() !== ''
+              let finalPrice = sizePrice && sizePrice.trim() !== ''
                 ? parseFloat(sizePrice)
                 : (colorData.price && colorData.price.trim() !== '' 
                   ? parseFloat(colorData.price) 
                   : baseVariantData.price);
+              
+              // Convert price from input currency to AMD (base currency)
+              if (priceInputCurrency !== 'AMD' && finalPrice > 0) {
+                finalPrice = convertPrice(finalPrice, priceInputCurrency, 'AMD');
+              }
               
               console.log('💰 [ADMIN] Price conversion:', {
                 sizePrice,
@@ -2070,11 +2085,16 @@ function AddProductPageContent() {
               
               // Используем compareAtPrice размера, если указана, иначе compareAtPrice цвета, иначе compareAtPrice варианта
               const sizeCompareAtPrice = colorData.sizeCompareAtPrices?.[size];
-              const finalCompareAtPrice = sizeCompareAtPrice && sizeCompareAtPrice.trim() !== ''
+              let finalCompareAtPrice = sizeCompareAtPrice && sizeCompareAtPrice.trim() !== ''
                 ? parseFloat(sizeCompareAtPrice)
                 : (colorData.compareAtPrice && colorData.compareAtPrice.trim() !== ''
                   ? parseFloat(colorData.compareAtPrice)
                   : baseVariantData.compareAtPrice);
+              
+              // Convert compareAtPrice from input currency to AMD (base currency)
+              if (finalCompareAtPrice && priceInputCurrency !== 'AMD' && finalCompareAtPrice > 0) {
+                finalCompareAtPrice = convertPrice(finalCompareAtPrice, priceInputCurrency, 'AMD');
+              }
               
               variants.push({
                 ...baseVariantData,
@@ -2109,9 +2129,14 @@ function AddProductPageContent() {
               : undefined;
 
             // Используем цену цвета, если указана, иначе цену варианта
-            const finalPrice = colorData.price && colorData.price.trim() !== '' 
+            let finalPrice = colorData.price && colorData.price.trim() !== '' 
               ? parseFloat(colorData.price) 
               : baseVariantData.price;
+              
+            // Convert price from input currency to AMD (base currency)
+            if (priceInputCurrency !== 'AMD' && finalPrice > 0) {
+              finalPrice = convertPrice(finalPrice, priceInputCurrency, 'AMD');
+            }
               
             console.log('💰 [ADMIN] Price conversion (no sizes):', {
               colorPrice: colorData.price,
@@ -2121,9 +2146,14 @@ function AddProductPageContent() {
               isNaN: isNaN(finalPrice),
             });
 
-            const finalCompareAtPrice = colorData.compareAtPrice && colorData.compareAtPrice.trim() !== ''
+            let finalCompareAtPrice = colorData.compareAtPrice && colorData.compareAtPrice.trim() !== ''
               ? parseFloat(colorData.compareAtPrice)
               : baseVariantData.compareAtPrice;
+              
+            // Convert compareAtPrice from input currency to AMD (base currency)
+            if (finalCompareAtPrice && priceInputCurrency !== 'AMD' && finalCompareAtPrice > 0) {
+              finalCompareAtPrice = convertPrice(finalCompareAtPrice, priceInputCurrency, 'AMD');
+            }
 
             variants.push({
               ...baseVariantData,

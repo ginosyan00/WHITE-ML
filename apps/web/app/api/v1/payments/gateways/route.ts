@@ -1,8 +1,9 @@
 /**
  * Public Payment Gateways API
  * 
- * GET /api/v1/payments/gateways
- * Get enabled payment gateways for checkout
+ * GET /api/v1/payments/gateways - Get all enabled payment gateways (public, no auth required)
+ * 
+ * Returns only enabled payment gateways for use in checkout page
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -12,20 +13,38 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/v1/payments/gateways
- * Get enabled payment gateways
+ * Get all enabled payment gateways (public endpoint)
  * 
- * Returns only enabled gateways for public use in checkout
+ * Query parameters:
+ * - testMode: boolean (optional) - filter by test mode
+ * 
+ * Returns only enabled gateways, sorted by position
  */
 export async function GET(req: NextRequest) {
   try {
-    console.log("💳 [PUBLIC GATEWAYS] GET request received");
+    console.log("💳 [PUBLIC PAYMENTS] GET request received:", { url: req.url });
 
-    const result = await paymentGatewayService.getAll({
-      enabled: true,
-    });
+    // Extract query parameters
+    const searchParams = req.nextUrl.searchParams;
+    const testMode = searchParams.get("testMode");
 
-    // Filter and format for public use (no sensitive data)
-    const publicGateways = result.data.map((gateway) => ({
+    // Build filters - only get enabled gateways
+    const filters: any = {
+      enabled: true, // Only return enabled gateways
+    };
+
+    if (testMode !== null) {
+      filters.testMode = testMode === "true";
+    }
+
+    console.log("💳 [PUBLIC PAYMENTS] Fetching enabled gateways with filters:", filters);
+
+    const result = await paymentGatewayService.getAll(filters);
+    
+    console.log(`✅ [PUBLIC PAYMENTS] Retrieved ${result.data.length} enabled gateways`);
+
+    // Return only necessary fields for checkout (no sensitive config data)
+    const gateways = result.data.map((gateway) => ({
       id: gateway.id,
       type: gateway.type,
       bankId: gateway.bankId,
@@ -34,26 +53,26 @@ export async function GET(req: NextRequest) {
       position: gateway.position,
     }));
 
-    console.log(`✅ [PUBLIC GATEWAYS] Returning ${publicGateways.length} enabled gateways`);
-
-    return NextResponse.json({ data: publicGateways });
+    return NextResponse.json({ data: gateways });
   } catch (error: any) {
-    console.error("❌ [PUBLIC GATEWAYS] Error:", error);
+    console.error("❌ [PUBLIC PAYMENTS] GET Error:", {
+      message: error.message,
+      stack: error.stack,
+      type: error.type,
+      status: error.status,
+      detail: error.detail,
+      url: req.url,
+    });
 
     return NextResponse.json(
       {
-        type: "https://api.shop.am/problems/internal-error",
-        title: "Internal Server Error",
-        status: 500,
-        detail: error.message || "An error occurred",
+        type: error.type || "https://api.shop.am/problems/internal-error",
+        title: error.title || "Internal Server Error",
+        status: error.status || 500,
+        detail: error.detail || error.message || "An error occurred",
         instance: req.url,
       },
-      { status: 500 }
+      { status: error.status || 500 }
     );
   }
 }
-
-
-
-
-

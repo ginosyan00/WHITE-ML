@@ -478,7 +478,7 @@ export function ProductCard({ product, viewMode = 'grid-3' }: ProductCardProps) 
             <div className="flex flex-col">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xl sm:text-2xl font-semibold text-blue-600">
-                  {formatPrice(product.price || 0, currency || 'USD')}
+                  {formatPrice(product.price || 0, currency || 'AMD')}
                 </span>
                 {product.discountPercent && product.discountPercent > 0 ? (
                   <span className="text-xs sm:text-sm font-semibold text-blue-600">
@@ -493,7 +493,7 @@ export function ProductCard({ product, viewMode = 'grid-3' }: ProductCardProps) 
                     (product.originalPrice && product.originalPrice > product.price) 
                       ? product.originalPrice 
                       : (product.compareAtPrice || 0), 
-                    currency || 'USD'
+                    currency || 'AMD'
                   )}
                 </span>
               ) : null}
@@ -670,7 +670,7 @@ export function ProductCard({ product, viewMode = 'grid-3' }: ProductCardProps) 
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
               <span className={`${isCompact ? 'text-lg' : 'text-2xl'} font-semibold text-gray-900`}>
-                {formatPrice(product.price || 0, currency || 'USD')}
+                {formatPrice(product.price || 0, currency || 'AMD')}
               </span>
               {product.discountPercent && product.discountPercent > 0 ? (
                 <span className={`${isCompact ? 'text-xs' : 'text-sm'} font-semibold text-blue-600`}>
@@ -685,7 +685,7 @@ export function ProductCard({ product, viewMode = 'grid-3' }: ProductCardProps) 
                   (product.originalPrice && product.originalPrice > product.price) 
                     ? product.originalPrice 
                     : (product.compareAtPrice || 0), 
-                  currency || 'USD'
+                  currency || 'AMD'
                 )}
               </span>
             ) : null}

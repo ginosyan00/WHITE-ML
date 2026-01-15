@@ -294,6 +294,77 @@ export default function CheckoutPage() {
     return () => clearTimeout(timeoutId);
   }, [shippingCity, shippingMethod]);
 
+  // Fetch available payment gateways with real-time polling
+  useEffect(() => {
+    const fetchPaymentGateways = async (isInitial = false) => {
+      try {
+        if (isInitial) {
+          setLoadingGateways(true);
+        }
+        console.log('💳 [CHECKOUT] Fetching enabled payment gateways...');
+        
+        const response = await apiClient.get<{ data: Array<{
+          id: string;
+          type: string;
+          bankId?: string | null;
+          name: string;
+          testMode: boolean;
+          position: number;
+        }> }>('/api/v1/payments/gateways');
+        
+        // Compare with existing gateways to detect new ones
+        setAvailableGateways((prevGateways) => {
+          const newGateways = response.data;
+          const prevIds = new Set(prevGateways.map(g => g.id));
+          const newIds = new Set(newGateways.map(g => g.id));
+          
+          // Check if there are new gateways
+          const hasNewGateways = newGateways.some(g => !prevIds.has(g.id));
+          const hasRemovedGateways = prevGateways.some(g => !newIds.has(g.id));
+          
+          if (hasNewGateways || hasRemovedGateways) {
+            console.log('🔄 [CHECKOUT] Payment gateways updated:', {
+              previous: prevGateways.length,
+              current: newGateways.length,
+              newGateways: newGateways.filter(g => !prevIds.has(g.id)).map(g => g.name),
+              removedGateways: prevGateways.filter(g => !newIds.has(g.id)).map(g => g.name),
+            });
+          }
+          
+          return newGateways;
+        });
+        
+        if (isInitial) {
+          console.log('✅ [CHECKOUT] Payment gateways loaded:', response.data);
+        }
+      } catch (error: any) {
+        console.error('❌ [CHECKOUT] Error loading payment gateways:', error);
+        // Don't show error to user, just log it - checkout can work with cash on delivery only
+        // Only set empty array on initial load, keep existing on polling errors
+        if (isInitial) {
+          setAvailableGateways([]);
+        }
+      } finally {
+        if (isInitial) {
+          setLoadingGateways(false);
+        }
+      }
+    };
+
+    // Initial fetch
+    fetchPaymentGateways(true);
+
+    // Poll for updates every 10 seconds
+    const pollInterval = setInterval(() => {
+      fetchPaymentGateways(false);
+    }, 10000); // 10 seconds
+
+    // Cleanup interval on unmount
+    return () => {
+      clearInterval(pollInterval);
+    };
+  }, []);
+
   useEffect(() => {
     // Wait for auth to finish loading before checking
     if (isLoading) {
