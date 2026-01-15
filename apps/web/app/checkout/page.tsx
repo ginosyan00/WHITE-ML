@@ -110,7 +110,7 @@ export default function CheckoutPage() {
       const gatewayName = gateway.name || 
         (gateway.type === 'idram' ? t('checkout.payment.idram') :
          gateway.type === 'arca' ? t('checkout.payment.arca') :
-         gateway.type === 'ameriabank' ? 'Ameriabank' :
+         gateway.type === 'ameriabank' ? t('checkout.payment.ameriabank') :
          gateway.type === 'inecobank' ? 'Inecobank' : gateway.type);
 
       methods.push({
@@ -120,7 +120,8 @@ export default function CheckoutPage() {
           ? `${gatewayName} (Test Mode)`
           : gatewayName,
         logo: gateway.type === 'idram' ? '/assets/payments/idram.svg' :
-              gateway.type === 'arca' ? '/assets/payments/arca.svg' : null,
+              gateway.type === 'arca' ? '/assets/payments/arca.svg' :
+              gateway.type === 'ameriabank' ? '/assets/payments/ameria.svg' : null,
         gatewayId: gateway.id,
         gatewayType: gateway.type,
         bankId: gateway.bankId || undefined,
@@ -191,7 +192,17 @@ export default function CheckoutPage() {
     message: t('checkout.errors.invalidPhoneFormat'),
     path: ['shippingPhone'],
   }).refine((data) => {
-    if (data.paymentMethod === 'arca' || data.paymentMethod === 'idram') {
+    // Check if payment method requires card details (ArCa or Idram)
+    // paymentMethod can be 'cash_on_delivery', 'arca', 'idram', or gateway ID
+    const requiresCardDetails = data.paymentMethod === 'arca' || 
+                                data.paymentMethod === 'idram' ||
+                                (data.paymentMethod !== 'cash_on_delivery' && 
+                                 availableGateways.some(g => 
+                                   g.id === data.paymentMethod && 
+                                   (g.type === 'arca' || g.type === 'idram')
+                                 ));
+    
+    if (requiresCardDetails) {
       return data.cardNumber && data.cardNumber.replace(/\s/g, '').length >= 13;
     }
     return true;
@@ -199,7 +210,15 @@ export default function CheckoutPage() {
     message: t('checkout.errors.cardNumberRequired'),
     path: ['cardNumber'],
   }).refine((data) => {
-    if (data.paymentMethod === 'arca' || data.paymentMethod === 'idram') {
+    const requiresCardDetails = data.paymentMethod === 'arca' || 
+                                data.paymentMethod === 'idram' ||
+                                (data.paymentMethod !== 'cash_on_delivery' && 
+                                 availableGateways.some(g => 
+                                   g.id === data.paymentMethod && 
+                                   (g.type === 'arca' || g.type === 'idram')
+                                 ));
+    
+    if (requiresCardDetails) {
       return data.cardExpiry && /^\d{2}\/\d{2}$/.test(data.cardExpiry);
     }
     return true;
@@ -207,7 +226,15 @@ export default function CheckoutPage() {
     message: t('checkout.errors.cardExpiryRequired'),
     path: ['cardExpiry'],
   }).refine((data) => {
-    if (data.paymentMethod === 'arca' || data.paymentMethod === 'idram') {
+    const requiresCardDetails = data.paymentMethod === 'arca' || 
+                                data.paymentMethod === 'idram' ||
+                                (data.paymentMethod !== 'cash_on_delivery' && 
+                                 availableGateways.some(g => 
+                                   g.id === data.paymentMethod && 
+                                   (g.type === 'arca' || g.type === 'idram')
+                                 ));
+    
+    if (requiresCardDetails) {
       return data.cardCvv && data.cardCvv.length >= 3;
     }
     return true;
@@ -215,14 +242,22 @@ export default function CheckoutPage() {
     message: t('checkout.errors.cvvRequired'),
     path: ['cardCvv'],
   }).refine((data) => {
-    if (data.paymentMethod === 'arca' || data.paymentMethod === 'idram') {
+    const requiresCardDetails = data.paymentMethod === 'arca' || 
+                                data.paymentMethod === 'idram' ||
+                                (data.paymentMethod !== 'cash_on_delivery' && 
+                                 availableGateways.some(g => 
+                                   g.id === data.paymentMethod && 
+                                   (g.type === 'arca' || g.type === 'idram')
+                                 ));
+    
+    if (requiresCardDetails) {
       return data.cardHolderName && data.cardHolderName.trim().length > 0;
     }
     return true;
   }, {
     message: t('checkout.errors.cardHolderNameRequired'),
     path: ['cardHolderName'],
-  }), [t]);
+  }), [t, availableGateways]);
 
   // Debug: Log modal state changes
   useEffect(() => {
@@ -258,6 +293,42 @@ export default function CheckoutPage() {
   const paymentMethod = watch('paymentMethod');
   const shippingMethod = watch('shippingMethod');
   const shippingCity = watch('shippingCity');
+  
+  // Helper to check if selected payment method requires card details
+  const selectedPaymentMethodInfo = useMemo(() => {
+    const method = paymentMethods.find(m => m.id === paymentMethod);
+    const gatewayType = method?.gatewayType;
+    const requiresCardDetails = gatewayType === 'arca' || 
+                                gatewayType === 'idram' || 
+                                paymentMethod === 'arca' || 
+                                paymentMethod === 'idram';
+    
+    return {
+      method,
+      gatewayType,
+      requiresCardDetails,
+      // Helper to get payment method name for display
+      getPaymentMethodName: () => {
+        if (gatewayType === 'arca' || paymentMethod === 'arca') return t('checkout.payment.arca');
+        if (gatewayType === 'idram' || paymentMethod === 'idram') return t('checkout.payment.idram');
+        return method?.name || paymentMethod;
+      },
+      // Helper to get payment logo
+      getPaymentLogo: () => {
+        if (gatewayType === 'arca' || paymentMethod === 'arca') return '/assets/payments/arca.svg';
+        if (gatewayType === 'idram' || paymentMethod === 'idram') return '/assets/payments/idram.svg';
+        return '/assets/payments/arca.svg'; // default
+      },
+    };
+  }, [paymentMethod, paymentMethods, t]);
+
+  // Debug: Log card modal state changes
+  useEffect(() => {
+    console.log('[Checkout] showCardModal changed:', showCardModal, {
+      paymentMethod,
+      selectedPaymentMethodInfo,
+    });
+  }, [showCardModal, paymentMethod, selectedPaymentMethodInfo]);
 
   // Fetch delivery price when city changes
   useEffect(() => {
@@ -672,9 +743,12 @@ export default function CheckoutPage() {
       isLoggedIn, 
       isLoading, 
       showShippingModal,
+      showCardModal,
       paymentMethod,
       shippingMethod,
-      cart: cart ? 'exists' : 'null'
+      cart: cart ? 'exists' : 'null',
+      selectedPaymentMethodInfo,
+      paymentMethodsCount: paymentMethods.length,
     });
     
     // Validate shipping address if delivery is selected
@@ -702,22 +776,87 @@ export default function CheckoutPage() {
       }
     }
     
-    // If ArCa or Idram is selected, show card details modal first
-    if (paymentMethod === 'arca' || paymentMethod === 'idram') {
-      console.log('[Checkout] Opening card modal for payment:', paymentMethod);
+    // Use the helper to get payment method info
+    const selectedPaymentMethod = paymentMethods.find(m => m.id === paymentMethod);
+    const gatewayType = selectedPaymentMethod?.gatewayType;
+    
+    console.log('[Checkout] Payment method details:', {
+      paymentMethod,
+      selectedPaymentMethod: selectedPaymentMethod ? {
+        id: selectedPaymentMethod.id,
+        name: selectedPaymentMethod.name,
+        gatewayType: selectedPaymentMethod.gatewayType,
+        gatewayId: selectedPaymentMethod.gatewayId,
+      } : null,
+      gatewayType,
+      allPaymentMethods: paymentMethods.map(m => ({ id: m.id, name: m.name, gatewayType: m.gatewayType })),
+      selectedPaymentMethodInfo: selectedPaymentMethodInfo,
+      requiresCardDetails: selectedPaymentMethodInfo.requiresCardDetails,
+    });
+    
+    // If ArCa, Idram, or Ameriabank is selected, show card details modal first
+    // (These gateways require card details input in checkout form for testing)
+    // Check both gatewayType and paymentMethod for backward compatibility
+    const needsCardModal = selectedPaymentMethodInfo.requiresCardDetails || 
+                          gatewayType === 'arca' || 
+                          gatewayType === 'idram' || 
+                          gatewayType === 'ameriabank' ||
+                          paymentMethod === 'arca' || 
+                          paymentMethod === 'idram' ||
+                          paymentMethod === 'ameriabank';
+    
+    console.log('[Checkout] Card modal check:', {
+      needsCardModal,
+      requiresCardDetails: selectedPaymentMethodInfo.requiresCardDetails,
+      gatewayType,
+      paymentMethod,
+      check1: gatewayType === 'arca',
+      check2: gatewayType === 'idram',
+      check3: paymentMethod === 'arca',
+      check4: paymentMethod === 'idram',
+    });
+    
+    if (needsCardModal) {
+      console.log('[Checkout] ✅ Opening card modal for payment:', {
+        gatewayType: gatewayType || selectedPaymentMethodInfo.gatewayType,
+        paymentMethod,
+        reason: 'Card details required'
+      });
       setShowCardModal(true);
       return;
+    } else {
+      // This is normal behavior for cash on delivery (no card needed)
+      const isCashOnDelivery = paymentMethod === 'cash_on_delivery';
+      
+      if (isCashOnDelivery) {
+        console.log('[Checkout] ℹ️ Skipping card modal - cash on delivery:', {
+          gatewayType,
+          paymentMethod,
+          reason: 'Cash on delivery does not need card details'
+        });
+      } else {
+        console.warn('[Checkout] ⚠️ Unknown payment method type - no card modal:', {
+          gatewayType,
+          paymentMethod,
+          reason: 'Unknown payment method type'
+        });
+      }
     }
     
     // If guest checkout and cash on delivery, show modal to confirm/add shipping details
-    if (!isLoggedIn) {
+    if (!isLoggedIn && paymentMethod === 'cash_on_delivery') {
       console.log('[Checkout] Opening modal for guest checkout');
       setShowShippingModal(true);
       return;
     }
     
-    // Otherwise submit directly (logged in user, cash on delivery)
-    console.log('[Checkout] Submitting directly (logged in user, cash on delivery)');
+    // Otherwise submit directly (logged in user, or gateway payment like Ameriabank which redirects)
+    console.log('[Checkout] Submitting directly:', { 
+      isLoggedIn, 
+      paymentMethod, 
+      gatewayType,
+      requiresRedirect: gatewayType && gatewayType !== 'cash_on_delivery'
+    });
     handleSubmit(onSubmit)(e);
   };
 
@@ -1305,8 +1444,8 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {/* Payment Details - Only show for card payments */}
-                {(paymentMethod === 'arca' || paymentMethod === 'idram') && (
+                {/* Payment Details - Only show for card payments (ArCa or Idram) */}
+                {selectedPaymentMethodInfo.requiresCardDetails && (
                   <div className="space-y-4 mb-6 mt-6">
                     <h3 className="text-lg font-semibold text-gray-900">
                       {t('checkout.payment.paymentDetails')} ({paymentMethod === 'idram' ? t('checkout.payment.idram') : t('checkout.payment.arca')})
@@ -1428,8 +1567,8 @@ export default function CheckoutPage() {
                   </p>
                 </div>
 
-                {/* Payment Details for Pickup - Only show for card payments */}
-                {(paymentMethod === 'arca' || paymentMethod === 'idram') && (
+                {/* Payment Details for Pickup - Only show for card payments (ArCa or Idram) */}
+                {selectedPaymentMethodInfo.requiresCardDetails && (
                   <div className="space-y-4 mb-6">
                     <h3 className="text-lg font-semibold text-gray-900">
                       {t('checkout.payment.paymentDetails')} ({paymentMethod === 'idram' ? t('checkout.payment.idram') : t('checkout.payment.arca')})
@@ -1593,7 +1732,7 @@ export default function CheckoutPage() {
           >
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-gray-900">
-                {t('checkout.modals.cardDetails').replace('{method}', paymentMethod === 'arca' ? t('checkout.payment.arca') : t('checkout.payment.idram'))}
+                {t('checkout.modals.cardDetails').replace('{method}', selectedPaymentMethodInfo.getPaymentMethodName())}
               </h2>
               <button
                 onClick={() => setShowCardModal(false)}
@@ -1616,8 +1755,8 @@ export default function CheckoutPage() {
                     </svg>
                   ) : (
                     <img
-                      src={paymentMethod === 'arca' ? '/assets/payments/arca.svg' : '/assets/payments/idram.svg'}
-                      alt={paymentMethod === 'arca' ? 'ArCa' : 'Idram'}
+                      src={selectedPaymentMethodInfo.getPaymentLogo()}
+                      alt={selectedPaymentMethodInfo.getPaymentMethodName()}
                       className="w-full h-full object-contain p-1"
                       loading="lazy"
                       onError={() => {
@@ -1628,7 +1767,7 @@ export default function CheckoutPage() {
                 </div>
                 <div>
                   <div className="font-semibold text-gray-900">
-                    {paymentMethod === 'arca' ? t('checkout.payment.arca') : t('checkout.payment.idram')} {t('checkout.payment.paymentDetails')}
+                    {selectedPaymentMethodInfo.getPaymentMethodName()} {t('checkout.payment.paymentDetails')}
                   </div>
                   <div className="text-sm text-gray-600">{t('checkout.payment.enterCardDetails')}</div>
                 </div>

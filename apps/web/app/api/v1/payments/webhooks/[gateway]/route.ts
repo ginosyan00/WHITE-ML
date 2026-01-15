@@ -20,10 +20,12 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { gateway: string } }
+  { params }: { params: Promise<{ gateway: string }> | { gateway: string } }
 ) {
   try {
-    const gateway = params.gateway.toLowerCase() as PaymentGatewayType;
+    // Handle both sync and async params (Next.js 13+ compatibility)
+    const resolvedParams = await Promise.resolve(params);
+    const gateway = resolvedParams.gateway.toLowerCase() as PaymentGatewayType;
     console.log(`💳 [WEBHOOK ${gateway.toUpperCase()}] POST request received`);
 
     // Validate gateway type

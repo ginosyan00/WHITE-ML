@@ -45,6 +45,8 @@
     "idramDescription": "Վճարեք Idram դրամապանակով կամ քարտով",
     "arca": "ArCa",
     "arcaDescription": "Վճարեք ArCa քարտով",
+    "ameriabank": "Ameriabank",
+    "ameriabankDescription": "Վճարեք Ameriabank քարտով կամ անցեք վճարման էջ",
     "paymentDetails": "Վճարման մանրամասներ",
     "enterCardDetails": "Մուտքագրեք ձեր քարտի տվյալները՝ վճարումն ավարտելու համար"
   },

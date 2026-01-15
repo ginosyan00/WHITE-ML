@@ -45,6 +45,8 @@
     "idramDescription": "Оплатите кошельком Idram или картой",
     "arca": "ArCa",
     "arcaDescription": "Оплатите картой ArCa",
+    "ameriabank": "Ameriabank",
+    "ameriabankDescription": "Оплатите картой Ameriabank или перейдите на страницу оплаты",
     "paymentDetails": "Детали оплаты",
     "enterCardDetails": "Введите данные вашей карты для завершения оплаты"
   },

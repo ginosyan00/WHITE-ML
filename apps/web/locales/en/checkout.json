@@ -45,6 +45,8 @@
     "idramDescription": "Pay with Idram wallet or card",
     "arca": "ArCa",
     "arcaDescription": "Pay with ArCa card",
+    "ameriabank": "Ameriabank",
+    "ameriabankDescription": "Pay with Ameriabank card or redirect to payment page",
     "paymentDetails": "Payment Details",
     "enterCardDetails": "Enter your card details to complete the payment"
   },

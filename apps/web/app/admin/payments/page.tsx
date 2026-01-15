@@ -100,17 +100,20 @@ export default function PaymentsPage() {
 
   const handleFormSubmit = async (gatewayData: Omit<PaymentGateway, 'id' | 'createdAt' | 'updatedAt' | 'healthStatus'>) => {
     try {
-      if (editingGateway) {
+      if (editingGateway && editingGateway.id) {
         // Update existing gateway
+        console.log('💳 [ADMIN PAYMENTS] Updating gateway with ID:', editingGateway.id);
         await apiClient.put(`/api/v1/admin/payments/${editingGateway.id}`, gatewayData);
       } else {
         // Create new gateway
+        console.log('💳 [ADMIN PAYMENTS] Creating new gateway');
         await apiClient.post('/api/v1/admin/payments', gatewayData);
       }
       await fetchGateways();
       handleCloseForm();
     } catch (error: any) {
       console.error('❌ [ADMIN PAYMENTS] Error saving gateway:', error);
+      console.error('❌ [ADMIN PAYMENTS] Editing gateway:', editingGateway);
       alert(error.response?.data?.detail || error.message || 'Failed to save gateway');
     }
   };
