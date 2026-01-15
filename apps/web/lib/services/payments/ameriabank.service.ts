@@ -302,7 +302,7 @@ export class AmeriabankPaymentService extends BasePaymentService {
   async getPaymentStatus(transactionId: string): Promise<PaymentStatus> {
     try {
       // Get account credentials (default to AMD)
-      const account = this.accounts.AMD || this.accounts.USD || this.accounts.EUR || this.accounts.RUB;
+      const account = this.accounts.AMD;
       if (!account) {
         throw new Error("No account credentials configured");
       }

@@ -31,3 +31,6 @@ npm run db:migrate
 echo "✅ [PAYMENT MIGRATION] Migration completed!"
 
 
+
+
+

@@ -1,140 +1,117 @@
-# ✅ Database Setup Complete
+# ✅ Database Setup Complete - Neon PostgreSQL
 
-## Կատարված աշխատանք
+## 🎉 Status: READY
 
-### 1. Environment Variables Configuration
+Բազան ամբողջությամբ կարգավորված է և պատրաստ է օգտագործման:
 
-**Root `.env` file:**
+## 📊 Ավելացված տվյալներ
+
+### ✅ Users (1)
+- **Admin User**
+  - Email: `admin@whiteshop.am`
+  - Password: `Admin123!`
+  - Roles: `["admin"]`
+
+### ✅ Categories (4)
+- Electronics / Էլեկտրոնիկա / Электроника
+- Clothing / Հագուստ / Одежда
+- Shoes / Կոշիկներ / Обувь
+- Accessories / Աքսեսուարներ / Аксессуары
+- **12 translations** (3 լեզվով)
+
+### ✅ Brands (4)
+- Apple
+- Samsung
+- Nike
+- Adidas
+- **12 translations** (3 լեզվով)
+
+### ✅ Products (4)
+- iPhone 15 Pro (3 variants)
+- Samsung Galaxy S24 (3 variants)
+- Nike Air Max 90 (18 variants - 6 sizes × 3 colors)
+- Adidas Originals T-Shirt (15 variants - 5 sizes × 3 colors)
+- **12 translations** (3 լեզվով)
+- **39 product variants** ընդամենը
+
+### ✅ Settings (4)
+- site.name
+- site.description
+- currency (AMD)
+- defaultLocale (hy)
+
+## 🔗 Connection Strings
+
+### Root `.env`
 ```
-DATABASE_URL="postgresql://neondb_owner:npg_YJIrcxVL36hf@ep-old-snow-adckjtbh-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require&client_encoding=UTF8"
+DATABASE_URL="postgresql://neondb_owner:npg_NzMXVrnRY7i0@ep-fancy-fog-ah0pq960-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require&client_encoding=UTF8"
 ```
 
-**Next.js `.env.local` file (apps/web/.env.local):**
+### `apps/web/.env.local`
 ```
-DATABASE_URL="postgresql://neondb_owner:npg_YJIrcxVL36hf@ep-old-snow-adckjtbh-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require&client_encoding=UTF8"
+DATABASE_URL="postgresql://neondb_owner:npg_NzMXVrnRY7i0@ep-fancy-fog-ah0pq960-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require&client_encoding=UTF8"
 ```
 
-### 2. Database Connection Improvements
+### `packages/db/.env`
+```
+DATABASE_URL="postgresql://neondb_owner:npg_NzMXVrnRY7i0@ep-fancy-fog-ah0pq960-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require&client_encoding=UTF8"
+```
 
-- ✅ Ավելացվել է ավելի մանրամասն error logging `packages/db/client.ts`-ում
-- ✅ Ավելացվել է connection string validation
-- ✅ Ավելացվել է quotes removal logic (եթե connection string-ը quotes-ների մեջ է)
+## 🌐 Neon Console
 
-### 3. API Error Handling
+**Տեսնել տվյալները:**
+👉 https://console.neon.tech/app/projects/autumn-term-06749994/branches/br-spring-glitter-ahpgsx9m/tables
 
-- ✅ Ավելացվել է ավելի մանրամասն error logging `apps/web/app/api/v1/products/route.ts`-ում
-- ✅ Ավելացվել է DATABASE_URL validation API responses-ում (development mode-ում)
+## 🚀 Հաջորդ քայլեր
 
-### 4. Test Endpoints
+1. **Վերսկսել Next.js dev server** (եթե աշխատում է):
+   ```bash
+   # Ctrl+C դադարեցնել
+   npm run dev
+   ```
 
-Ստեղծվել են test endpoints բազայի կապակցումը ստուգելու համար:
+2. **Ստուգել, որ տվյալները երևում են կայքում:**
+   - Բացել http://localhost:3000
+   - Ստուգել, որ ապրանքները երևում են
+   - Ստուգել, որ կատեգորիաները երևում են
 
-- `/api/v1/test-connection` - Ստուգում է բազայի կապակցումը և ցուցադրում է տվյալների քանակը
-- `/api/v1/test-db` - Նախնական test endpoint
+3. **Ստուգել API:**
+   ```bash
+   curl http://localhost:3000/api/v1/products
+   ```
 
-## Հաջորդ քայլեր
+## 📝 Scripts
 
-### 1. Վերագործարկեք Development Server
-
+### Seed Database
 ```bash
-# Դադարեցրեք server-ը (Ctrl+C)
-# Ապա գործարկեք նորից:
-npm run dev
+npx tsx scripts/seed-database.ts
 ```
 
-### 2. Ստուգեք Database Connection
-
-Բացեք browser-ում:
-- `http://localhost:3000/api/v1/test-connection`
-
-Պետք է տեսնեք JSON response-ը հետևյալ տեղեկատվությամբ:
-```json
-{
-  "success": true,
-  "message": "Database connection successful!",
-  "counts": {
-    "products": 24,
-    "categories": 6
-  },
-  "sample": {
-    "products": [...],
-    "categories": [...]
-  }
-}
+### Verify Tables
+```bash
+node verify-neon-tables.js
 ```
 
-### 3. Ստուգեք Products API
+### Prisma Studio
+```bash
+cd packages/db
+npm run db:studio
+```
 
-Բացեք browser-ում:
-- `http://localhost:3000/api/v1/products?page=1&limit=10&lang=en`
+## ✅ Verification
 
-Պետք է տեսնեք ապրանքների ցուցակը:
+Բոլոր 27 աղյուսակները ստեղծված են և լցված են տվյալներով:
 
-### 4. Ստուգեք Կայքը
+- ✅ users: 1 record
+- ✅ categories: 4 records
+- ✅ category_translations: 12 records
+- ✅ brands: 4 records
+- ✅ brand_translations: 12 records
+- ✅ products: 4 records
+- ✅ product_translations: 12 records
+- ✅ product_variants: 39 records
+- ✅ settings: 4 records
 
-Բացեք browser-ում:
-- `http://localhost:3000`
+## 🎯 Result
 
-Ապրանքները պետք է ցուցադրվեն բազայից:
-
-## Troubleshooting
-
-### Եթե տվյալները դեռ չեն բացվում:
-
-1. **Ստուգեք console logs:**
-   - Բացեք terminal-ը, որտեղ աշխատում է `npm run dev`
-   - Փնտրեք error messages-ներ, որոնք սկսվում են `❌ [DB]` կամ `❌ [PRODUCTS API]`
-
-2. **Ստուգեք test endpoint:**
-   - Բացեք `http://localhost:3000/api/v1/test-connection`
-   - Եթե error է, կտեսնեք մանրամասն error message
-
-3. **Ստուգեք environment variables:**
-   ```bash
-   # apps/web/.env.local
-   cat apps/web/.env.local
-   
-   # Root .env
-   cat .env
-   ```
-
-4. **Ստուգեք Prisma Client:**
-   ```bash
-   cd packages/db
-   npm run db:generate
-   ```
-
-5. **Clear Next.js cache:**
-   ```bash
-   cd apps/web
-   npm run clean
-   # Ապա վերագործարկեք server-ը
-   ```
-
-## Connection String Details
-
-**Neon PostgreSQL Connection:**
-- Host: `ep-old-snow-adckjtbh-pooler.c-2.us-east-1.aws.neon.tech`
-- Database: `neondb`
-- User: `neondb_owner`
-- SSL: Required (`sslmode=require`)
-- Channel Binding: Required (`channel_binding=require`)
-- Encoding: UTF-8 (`client_encoding=UTF8`)
-
-## Files Modified
-
-1. ✅ `.env` (root directory)
-2. ✅ `apps/web/.env.local`
-3. ✅ `packages/db/client.ts` - Ավելացվել է ավելի մանրամասն logging
-4. ✅ `apps/web/app/api/v1/products/route.ts` - Ավելացվել է ավելի մանրամասն error handling
-5. ✅ `apps/web/app/api/v1/test-connection/route.ts` - Նոր test endpoint
-
-## Notes
-
-- Next.js-ը կարդում է `.env.local` ֆայլը `apps/web` դիրեկտորիայում առաջնահերթությամբ
-- Prisma Client-ը օգտագործում է `DATABASE_URL` environment variable-ը
-- Connection string-ը պետք է լինի մեկ տողում, առանց line breaks
-- `client_encoding=UTF8` պարամետրը ապահովում է հայերենի և այլ UTF-8 նիշերի ճիշտ ցուցադրումը
-
-
-
+Ամեն ինչ պատրաստ է! Կայքը կարող է միանալ Neon-ին և ցուցադրել տվյալները:

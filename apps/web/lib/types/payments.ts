@@ -49,7 +49,7 @@ export type GatewayHealthStatus = "healthy" | "degraded" | "down";
 /**
  * Currency Codes
  */
-export type CurrencyCode = "AMD" | "USD" | "EUR" | "RUB";
+export type CurrencyCode = "AMD";
 
 /**
  * ArCa Bank IDs
@@ -146,18 +146,6 @@ export interface AmeriabankConfig {
       username: string;
       password: string;
     };
-    USD?: {
-      username: string;
-      password: string;
-    };
-    EUR?: {
-      username: string;
-      password: string;
-    };
-    RUB?: {
-      username: string;
-      password: string;
-    };
   };
   minTestOrderId?: number;
   maxTestOrderId?: number;
@@ -175,18 +163,6 @@ export interface InecobankConfig {
       username: string;
       password: string;
     };
-    USD?: {
-      username: string;
-      password: string;
-    };
-    EUR?: {
-      username: string;
-      password: string;
-    };
-    RUB?: {
-      username: string;
-      password: string;
-    };
   };
   successUrl?: string;
   failUrl?: string;
@@ -200,18 +176,6 @@ export interface ArcaConfig {
   bankId: ArcaBankId;
   accounts: {
     AMD?: {
-      username: string;
-      password: string;
-    };
-    USD?: {
-      username: string;
-      password: string;
-    };
-    EUR?: {
-      username: string;
-      password: string;
-    };
-    RUB?: {
       username: string;
       password: string;
     };

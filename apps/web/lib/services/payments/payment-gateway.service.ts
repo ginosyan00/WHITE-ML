@@ -31,23 +31,14 @@ export class PaymentGatewayService {
       case "ameriabank":
         return [
           "accounts.AMD.password",
-          "accounts.USD.password",
-          "accounts.EUR.password",
-          "accounts.RUB.password",
         ];
       case "inecobank":
         return [
           "accounts.AMD.password",
-          "accounts.USD.password",
-          "accounts.EUR.password",
-          "accounts.RUB.password",
         ];
       case "arca":
         return [
           "accounts.AMD.password",
-          "accounts.USD.password",
-          "accounts.EUR.password",
-          "accounts.RUB.password",
         ];
       default:
         return [];

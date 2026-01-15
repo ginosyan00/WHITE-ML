@@ -1082,6 +1082,14 @@ class AdminService {
     try {
       console.log('🆕 [ADMIN SERVICE] Creating product:', data.title);
 
+      // Ensure table exists BEFORE transaction (for Vercel deployments where migrations might not run)
+      // This prevents transaction timeout from slow table creation operations
+      if (data.attributeIds && data.attributeIds.length > 0) {
+        await ensureProductAttributesTable();
+      }
+
+      // Execute everything in a transaction for atomicity and speed
+      // Increased timeout to 30 seconds to handle complex product creation with many variants
       const result = await db.$transaction(async (tx: any) => {
         // Generate variants with options
         // Support both old format (color/size strings) and new format (AttributeValue IDs)
@@ -1167,9 +1175,6 @@ class AdminService {
         // Create ProductAttribute relations if attributeIds provided
         if (data.attributeIds && data.attributeIds.length > 0) {
           try {
-            // Ensure table exists (for Vercel deployments where migrations might not run)
-            await ensureProductAttributesTable();
-            
             console.log('🔗 [ADMIN SERVICE] Creating ProductAttribute relations for product:', product.id, 'attributes:', data.attributeIds);
             await tx.productAttribute.createMany({
               data: data.attributeIds.map((attributeId) => ({
@@ -1202,6 +1207,8 @@ class AdminService {
             labels: true,
           },
         });
+      }, {
+        timeout: 30000, // 30 seconds timeout for complex product creation
       });
 
       // Revalidate cache
@@ -1280,7 +1287,14 @@ class AdminService {
         };
       }
 
+      // Ensure table exists BEFORE transaction (for Vercel deployments where migrations might not run)
+      // This prevents transaction timeout from slow table creation operations
+      if (data.attributeIds !== undefined) {
+        await ensureProductAttributesTable();
+      }
+
       // Execute everything in a transaction for atomicity and speed
+      // Increased timeout to 30 seconds to handle complex product updates with many variants
       const result = await db.$transaction(async (tx: any) => {
         // 1. Update product base data
         const updateData: any = {};
@@ -1341,9 +1355,6 @@ class AdminService {
 
         // 3.5. Update ProductAttribute relations
         if (data.attributeIds !== undefined) {
-          // Ensure table exists (for Vercel deployments where migrations might not run)
-          await ensureProductAttributesTable();
-          
           await tx.productAttribute.deleteMany({ where: { productId } });
           if (data.attributeIds.length > 0) {
             await tx.productAttribute.createMany({
@@ -1445,6 +1456,8 @@ class AdminService {
             labels: true,
           },
         });
+      }, {
+        timeout: 30000, // 30 seconds timeout for complex product updates
       });
 
       // 6. Revalidate cache for this product and related pages

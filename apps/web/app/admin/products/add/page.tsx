@@ -8,6 +8,93 @@ import { Card, Button, Input } from '@shop/ui';
 import { apiClient } from '../../../../lib/api-client';
 import { getColorHex, COLOR_MAP } from '../../../../lib/colorMap';
 import { useTranslation } from '../../../../lib/i18n-client';
+import { CURRENCIES, convertPrice, formatPrice, type CurrencyCode } from '../../../../lib/currency';
+
+// Component for displaying price in other currencies
+function PriceConverter({ 
+  price, 
+  selectedCurrency = 'USD',
+  onCurrencyChange 
+}: { 
+  price: string | number; 
+  selectedCurrency?: CurrencyCode;
+  onCurrencyChange?: (currency: CurrencyCode) => void;
+}) {
+  const priceNum = typeof price === 'string' ? parseFloat(price) : price;
+  
+  if (!price || price === '' || isNaN(priceNum) || priceNum <= 0) {
+    return (
+      <div className="mt-1.5 p-2 bg-blue-50 rounded border border-blue-200">
+        <div className="text-xs text-blue-600 font-medium mb-2">💱 Մուտքագրեք գինը՝ այլ արժույթներում տեսնելու համար</div>
+        {onCurrencyChange && (
+          <div className="mt-2">
+            <label className="block text-xs text-gray-600 mb-1">Գնի արժույթ:</label>
+            <select
+              value={selectedCurrency}
+              onChange={(e) => onCurrencyChange(e.target.value as CurrencyCode)}
+              className="w-full text-xs px-2 py-1 border border-gray-300 rounded bg-white"
+            >
+              {Object.keys(CURRENCIES).map((code) => {
+                const currencyCode = code as CurrencyCode;
+                return (
+                  <option key={currencyCode} value={currencyCode}>
+                    {CURRENCIES[currencyCode].symbol} {currencyCode} - {CURRENCIES[currencyCode].name}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const baseCurrency: CurrencyCode = selectedCurrency;
+  
+  return (
+    <div className="mt-1.5 p-2 bg-blue-50 rounded text-xs space-y-1 border border-blue-200">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs font-semibold text-blue-700 flex items-center gap-1">
+          <span>💱</span>
+          <span>Այլ արժույթներով:</span>
+        </div>
+        {onCurrencyChange && (
+          <select
+            value={selectedCurrency}
+            onChange={(e) => onCurrencyChange(e.target.value as CurrencyCode)}
+            className="text-[10px] px-1.5 py-0.5 border border-blue-300 rounded bg-white text-gray-700"
+            title="Ընտրեք մուտքագրման արժույթը"
+          >
+            {Object.keys(CURRENCIES).map((code) => {
+              const currencyCode = code as CurrencyCode;
+              return (
+                <option key={currencyCode} value={currencyCode}>
+                  {currencyCode}
+                </option>
+              );
+            })}
+          </select>
+        )}
+      </div>
+      <div className="space-y-1">
+        {Object.keys(CURRENCIES).filter(code => code !== baseCurrency).map((code) => {
+          const currencyCode = code as CurrencyCode;
+          const convertedPrice = convertPrice(priceNum, baseCurrency, currencyCode);
+          const currencyInfo = CURRENCIES[currencyCode];
+          const formattedValue = Math.round(convertedPrice).toLocaleString('en-US');
+          
+          return (
+            <div key={currencyCode} className="flex items-center gap-2 bg-white px-2 py-1 rounded border border-blue-100">
+              <span className="font-bold text-gray-800 text-sm">{currencyInfo.symbol}</span>
+              <span className="text-gray-900 font-medium">{formattedValue}</span>
+              <span className="text-gray-500 text-[10px] ml-auto">({currencyCode})</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // Component for adding new color/size
 function NewColorSizeInput({ 
@@ -198,6 +285,7 @@ function AddProductPageContent() {
   const [colorMessage, setColorMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [sizeMessage, setSizeMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [selectedAttributeId, setSelectedAttributeId] = useState<string | null>(null);
+  const [priceInputCurrency, setPriceInputCurrency] = useState<CurrencyCode>('USD');
   const [newAttributeName, setNewAttributeName] = useState('');
   const [addingAttribute, setAddingAttribute] = useState(false);
   const [newAttributeValue, setNewAttributeValue] = useState('');
@@ -1823,7 +1911,7 @@ function AddProductPageContent() {
             
             // Validate price for this color
             const colorPriceValue = parseFloat(colorDataItem.price || '0');
-            if (!colorDataItem.price || isNaN(colorPriceValue) || colorPriceValue <= 0) {
+            if (!colorDataItem.price || colorDataItem.price.trim() === '' || isNaN(colorPriceValue) || colorPriceValue < 0) {
               alert(t('admin.products.add.variantPriceRequired').replace('{index}', variantIndex.toString()).replace('{color}', colorDataItem.colorLabel));
               setLoading(false);
               return;
@@ -1971,6 +2059,15 @@ function AddProductPageContent() {
                   ? parseFloat(colorData.price) 
                   : baseVariantData.price);
               
+              console.log('💰 [ADMIN] Price conversion:', {
+                sizePrice,
+                colorPrice: colorData.price,
+                basePrice: baseVariantData.price,
+                finalPrice,
+                finalPriceType: typeof finalPrice,
+                isNaN: isNaN(finalPrice),
+              });
+              
               // Используем compareAtPrice размера, если указана, иначе compareAtPrice цвета, иначе compareAtPrice варианта
               const sizeCompareAtPrice = colorData.sizeCompareAtPrices?.[size];
               const finalCompareAtPrice = sizeCompareAtPrice && sizeCompareAtPrice.trim() !== ''
@@ -2015,6 +2112,14 @@ function AddProductPageContent() {
             const finalPrice = colorData.price && colorData.price.trim() !== '' 
               ? parseFloat(colorData.price) 
               : baseVariantData.price;
+              
+            console.log('💰 [ADMIN] Price conversion (no sizes):', {
+              colorPrice: colorData.price,
+              basePrice: baseVariantData.price,
+              finalPrice,
+              finalPriceType: typeof finalPrice,
+              isNaN: isNaN(finalPrice),
+            });
 
             const finalCompareAtPrice = colorData.compareAtPrice && colorData.compareAtPrice.trim() !== ''
               ? parseFloat(colorData.compareAtPrice)
@@ -2149,6 +2254,13 @@ function AddProductPageContent() {
         }));
 
       console.log('📤 [ADMIN] Sending payload:', JSON.stringify(payload, null, 2));
+      console.log('💰 [ADMIN] Variants prices check:', variants.map(v => ({
+        price: v.price,
+        priceType: typeof v.price,
+        compareAtPrice: v.compareAtPrice,
+        color: v.color,
+        size: v.size,
+      })));
       
       if (isEditMode && productId) {
         // Update existing product
@@ -2157,6 +2269,11 @@ function AddProductPageContent() {
         const baseMessage = 'Ապրանքը հաջողությամբ թարմացվեց!';
         const extra = creationMessages.length ? `\n\n${creationMessages.join('\n')}` : '';
         alert(`${baseMessage}${extra}`);
+        
+        // Reload product data to reflect changes in UI
+        // Use window.location.reload() for simplicity, or trigger a re-fetch
+        // For better UX, we'll reload the page to ensure all data is fresh
+        window.location.reload();
       } else {
         // Create new product
         const product = await apiClient.post('/api/v1/admin/products', payload);
@@ -2164,9 +2281,8 @@ function AddProductPageContent() {
         const baseMessage = 'Ապրանքը հաջողությամբ ստեղծվեց!';
         const extra = creationMessages.length ? `\n\n${creationMessages.join('\n')}` : '';
         alert(`${baseMessage}${extra}`);
+        router.push('/admin/products');
       }
-      
-      router.push('/admin/products');
     } catch (err: any) {
       console.error('❌ [ADMIN] Error saving product:', err);
       
@@ -3432,7 +3548,7 @@ function AddProductPageContent() {
                                                 placeholder={t('admin.products.add.pricePlaceholder')}
                                                 className="w-full text-sm"
                                                 min="0"
-                                                step="0.01"
+                                                step="0.0001"
                                                 required
                                               />
                                             </div>
@@ -3450,7 +3566,7 @@ function AddProductPageContent() {
                                                 placeholder={t('admin.products.add.pricePlaceholder')}
                                                 className="w-full text-sm"
                                                 min="0"
-                                                step="0.01"
+                                                step="0.0001"
                                               />
                                             </div>
                                             <div>
@@ -3509,8 +3625,13 @@ function AddProductPageContent() {
                                             placeholder="0.00"
                                             className="w-full text-sm"
                                             min="0"
-                                            step="0.01"
+                                            step="0.0001"
                                             required
+                                          />
+                                          <PriceConverter 
+                                            price={matrixVariants[colorValue]?.price || ''} 
+                                            selectedCurrency={priceInputCurrency}
+                                            onCurrencyChange={setPriceInputCurrency}
                                           />
                                         </div>
                                         <div>
@@ -3530,7 +3651,12 @@ function AddProductPageContent() {
                                             placeholder={t('admin.products.add.pricePlaceholder')}
                                             className="w-full text-sm"
                                             min="0"
-                                            step="0.01"
+                                            step="0.0001"
+                                          />
+                                          <PriceConverter 
+                                            price={matrixVariants[colorValue]?.compareAtPrice || ''} 
+                                            selectedCurrency={priceInputCurrency}
+                                            onCurrencyChange={setPriceInputCurrency}
                                           />
                                         </div>
                                         <div>
@@ -3605,8 +3731,13 @@ function AddProductPageContent() {
                                             placeholder={t('admin.products.add.pricePlaceholder')}
                                             className="w-full text-sm"
                                             min="0"
-                                            step="0.01"
+                                            step="0.0001"
                                             required
+                                          />
+                                          <PriceConverter 
+                                            price={variant.price} 
+                                            selectedCurrency={priceInputCurrency}
+                                            onCurrencyChange={setPriceInputCurrency}
                                           />
                                         </div>
                                         <div>
@@ -3623,7 +3754,12 @@ function AddProductPageContent() {
                                             placeholder={t('admin.products.add.pricePlaceholder')}
                                             className="w-full text-sm"
                                             min="0"
-                                            step="0.01"
+                                            step="0.0001"
+                                          />
+                                          <PriceConverter 
+                                            price={variant.compareAtPrice} 
+                                            selectedCurrency={priceInputCurrency}
+                                            onCurrencyChange={setPriceInputCurrency}
                                           />
                                         </div>
                                         <div>
@@ -3688,8 +3824,13 @@ function AddProductPageContent() {
                                         placeholder={t('admin.products.add.pricePlaceholder')}
                                         className="w-full text-sm"
                                         min="0"
-                                        step="0.01"
+                                        step="0.0001"
                                         required
+                                      />
+                                      <PriceConverter 
+                                        price={matrixVariants['single']?.price || ''} 
+                                        selectedCurrency={priceInputCurrency}
+                                        onCurrencyChange={setPriceInputCurrency}
                                       />
                                     </div>
                                     <div>
@@ -3709,7 +3850,12 @@ function AddProductPageContent() {
                                         placeholder={t('admin.products.add.pricePlaceholder')}
                                         className="w-full text-sm"
                                         min="0"
-                                        step="0.01"
+                                        step="0.0001"
+                                      />
+                                      <PriceConverter 
+                                        price={matrixVariants['single']?.compareAtPrice || ''} 
+                                        selectedCurrency={priceInputCurrency}
+                                        onCurrencyChange={setPriceInputCurrency}
                                       />
                                     </div>
                                     <div>

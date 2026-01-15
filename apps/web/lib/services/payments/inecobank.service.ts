@@ -314,7 +314,7 @@ export class InecobankPaymentService extends BasePaymentService {
   async getPaymentStatus(transactionId: string): Promise<PaymentStatus> {
     try {
       // Get account credentials (default to AMD)
-      const account = this.accounts.AMD || this.accounts.USD || this.accounts.EUR || this.accounts.RUB;
+      const account = this.accounts.AMD;
       if (!account) {
         throw new Error("No account credentials configured");
       }
@@ -396,14 +396,11 @@ export class InecobankPaymentService extends BasePaymentService {
 
   /**
    * Convert currency code to numeric format
-   * AMD = 051, USD = 840, EUR = 978, RUB = 643
+   * AMD = 051
    */
   private getCurrencyCode(currency: string): string {
     const currencyMap: Record<string, string> = {
       AMD: "051",
-      USD: "840",
-      EUR: "978",
-      RUB: "643",
     };
     return currencyMap[currency] || "051";
   }

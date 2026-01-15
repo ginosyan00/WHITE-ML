@@ -28,11 +28,11 @@ export function generateOrderNumber(): string {
  * Get price from JSON object by currency code
  * 
  * @param priceJson - JSON string or object with currency prices
- * @param currencyCode - Currency code (AMD, USD, EUR, RUB)
+ * @param currencyCode - Currency code (AMD)
  * @returns Price value or 0 if not found
  * 
  * @example
- * getPriceFromJson('{"AMD": 1000, "USD": 2.5}', "AMD") // 1000
+ * getPriceFromJson('{"AMD": 1000}', "AMD") // 1000
  */
 export function getPriceFromJson(
   priceJson: string | Record<string, number>,
@@ -184,9 +184,6 @@ export function convertToSmallestUnit(
   // Currency multipliers (smallest unit per main unit)
   const multipliers: Record<string, number> = {
     AMD: 1,      // 1 AMD = 1 diram (no subdivision)
-    USD: 100,    // 1 USD = 100 cents
-    EUR: 100,    // 1 EUR = 100 cents
-    RUB: 100,    // 1 RUB = 100 kopecks
   };
 
   const multiplier = multipliers[currency] || 1;
@@ -206,9 +203,6 @@ export function convertFromSmallestUnit(
 ): number {
   const multipliers: Record<string, number> = {
     AMD: 1,
-    USD: 100,
-    EUR: 100,
-    RUB: 100,
   };
 
   const multiplier = multipliers[currency] || 1;

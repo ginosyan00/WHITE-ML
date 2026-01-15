@@ -418,10 +418,7 @@ export class PaymentService {
         case "inecobank":
         case "arca":
           fieldsToDecrypt.push(
-            "accounts.AMD.password",
-            "accounts.USD.password",
-            "accounts.EUR.password",
-            "accounts.RUB.password"
+            "accounts.AMD.password"
           );
           break;
       }

@@ -215,7 +215,7 @@ export abstract class BasePaymentService {
    */
   protected validateCurrency(
     currency: string,
-    supportedCurrencies: string[] = ["AMD", "USD", "EUR", "RUB"]
+    supportedCurrencies: string[] = ["AMD"]
   ): boolean {
     return supportedCurrencies.includes(currency);
   }

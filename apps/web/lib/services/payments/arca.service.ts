@@ -671,7 +671,7 @@ export class ArcaPaymentService extends BasePaymentService {
       console.log(`💳 [ARCA GET STATUS] Getting status for transactionId: ${transactionId}`);
 
       // Get account credentials (default to AMD)
-      const account = this.accounts.AMD || this.accounts.USD || this.accounts.EUR || this.accounts.RUB;
+      const account = this.accounts.AMD;
       if (!account) {
         throw new Error("No account credentials configured");
       }
@@ -767,14 +767,11 @@ export class ArcaPaymentService extends BasePaymentService {
 
   /**
    * Convert currency code to numeric format
-   * AMD = 051, USD = 840, EUR = 978, RUB = 643
+   * AMD = 051
    */
   private getCurrencyCode(currency: string): string {
     const currencyMap: Record<string, string> = {
       AMD: "051",
-      USD: "840",
-      EUR: "978",
-      RUB: "643",
     };
     return currencyMap[currency] || "051";
   }
@@ -1011,7 +1008,7 @@ export class ArcaPaymentService extends BasePaymentService {
       console.log(`💳 [ARCA REVERSE] Starting reversal for orderId: ${orderId}`);
 
       // Get account credentials (default to AMD)
-      const account = this.accounts.AMD || this.accounts.USD || this.accounts.EUR || this.accounts.RUB;
+      const account = this.accounts.AMD;
       if (!account || !account.username || !account.password) {
         return this.createErrorResponse(
           "MISSING_ACCOUNT",
@@ -1111,7 +1108,7 @@ export class ArcaPaymentService extends BasePaymentService {
       }
 
       // Get account credentials (default to AMD)
-      const account = this.accounts.AMD || this.accounts.USD || this.accounts.EUR || this.accounts.RUB;
+      const account = this.accounts.AMD;
       if (!account || !account.username || !account.password) {
         throw new Error("No account credentials configured");
       }
@@ -1198,7 +1195,7 @@ export class ArcaPaymentService extends BasePaymentService {
       console.log(`💳 [ARCA BINDING PAYMENT] Processing payment with binding: ${bindingId.substring(0, 8)}...`);
 
       // Get account credentials (default to AMD)
-      const account = this.accounts.AMD || this.accounts.USD || this.accounts.EUR || this.accounts.RUB;
+      const account = this.accounts.AMD;
       if (!account || !account.username || !account.password) {
         return this.createErrorResponse(
           "MISSING_ACCOUNT",
@@ -1334,7 +1331,7 @@ export class ArcaPaymentService extends BasePaymentService {
       console.log(`💳 [ARCA UNBIND CARD] Deactivating binding: ${bindingId.substring(0, 8)}...`);
 
       // Get account credentials (default to AMD)
-      const account = this.accounts.AMD || this.accounts.USD || this.accounts.EUR || this.accounts.RUB;
+      const account = this.accounts.AMD;
       if (!account || !account.username || !account.password) {
         return this.createErrorResponse(
           "MISSING_ACCOUNT",
@@ -1422,7 +1419,7 @@ export class ArcaPaymentService extends BasePaymentService {
       console.log(`💳 [ARCA BIND CARD] Activating binding: ${bindingId.substring(0, 8)}...`);
 
       // Get account credentials (default to AMD)
-      const account = this.accounts.AMD || this.accounts.USD || this.accounts.EUR || this.accounts.RUB;
+      const account = this.accounts.AMD;
       if (!account || !account.username || !account.password) {
         return this.createErrorResponse(
           "MISSING_ACCOUNT",
@@ -1519,7 +1516,7 @@ export class ArcaPaymentService extends BasePaymentService {
       console.log(`💳 [ARCA GET BINDINGS] Getting bindings for clientId: ${clientId}`);
 
       // Get account credentials (default to AMD)
-      const account = this.accounts.AMD || this.accounts.USD || this.accounts.EUR || this.accounts.RUB;
+      const account = this.accounts.AMD;
       if (!account || !account.username || !account.password) {
         throw new Error("No account credentials configured");
       }
@@ -1610,7 +1607,7 @@ export class ArcaPaymentService extends BasePaymentService {
       console.log(`💳 [ARCA 3DS2 GETURLS] Getting 3DS2 URLs for mdOrder: ${mdOrder}`);
 
       // Get account credentials (default to AMD)
-      const account = this.accounts.AMD || this.accounts.USD || this.accounts.EUR || this.accounts.RUB;
+      const account = this.accounts.AMD;
       if (!account || !account.username || !account.password) {
         throw new Error("No account credentials configured");
       }
@@ -1692,7 +1689,7 @@ export class ArcaPaymentService extends BasePaymentService {
       console.log(`💳 [ARCA PROCESSFORM] Processing form for mdOrder: ${mdOrder}`);
 
       // Get account credentials (default to AMD)
-      const account = this.accounts.AMD || this.accounts.USD || this.accounts.EUR || this.accounts.RUB;
+      const account = this.accounts.AMD;
       if (!account || !account.username || !account.password) {
         return this.createErrorResponse(
           "MISSING_ACCOUNT",
@@ -1840,7 +1837,7 @@ export class ArcaPaymentService extends BasePaymentService {
       console.log(`💳 [ARCA PAYMENTORDER] Processing payment order for mdOrder: ${mdOrder}`);
 
       // Get account credentials (default to AMD)
-      const account = this.accounts.AMD || this.accounts.USD || this.accounts.EUR || this.accounts.RUB;
+      const account = this.accounts.AMD;
       if (!account || !account.username || !account.password) {
         return this.createErrorResponse(
           "MISSING_ACCOUNT",
@@ -2059,7 +2056,7 @@ export class ArcaPaymentService extends BasePaymentService {
       console.log(`💳 [ARCA RECURRING] Processing recurring payment: ${recurringId.substring(0, 8)}...`);
 
       // Get account credentials (default to AMD)
-      const account = this.accounts.AMD || this.accounts.USD || this.accounts.EUR || this.accounts.RUB;
+      const account = this.accounts.AMD;
       if (!account || !account.username || !account.password) {
         return this.createErrorResponse(
           "MISSING_ACCOUNT",
@@ -2173,7 +2170,7 @@ export class ArcaPaymentService extends BasePaymentService {
       console.log(`💳 [ARCA P2P] Processing P2P transfer for mdOrder: ${mdOrder}`);
 
       // Get account credentials (default to AMD)
-      const account = this.accounts.AMD || this.accounts.USD || this.accounts.EUR || this.accounts.RUB;
+      const account = this.accounts.AMD;
       if (!account || !account.username || !account.password) {
         return this.createErrorResponse(
           "MISSING_ACCOUNT",
