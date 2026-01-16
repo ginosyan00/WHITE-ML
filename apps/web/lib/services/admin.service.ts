@@ -456,6 +456,7 @@ class AdminService {
             status: primaryPayment.status,
             cardLast4: primaryPayment.cardLast4,
             cardBrand: primaryPayment.cardBrand,
+            providerTransactionId: primaryPayment.providerTransactionId,
           }
         : null,
       customer: user

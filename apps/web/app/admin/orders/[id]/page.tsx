@@ -38,6 +38,7 @@ interface OrderDetails {
     status: string;
     cardLast4?: string | null;
     cardBrand?: string | null;
+    providerTransactionId?: string | null;
   } | null;
   items: Array<{
     id: string;
@@ -64,6 +65,9 @@ export default function OrderDetailsPage() {
   const [order, setOrder] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [refunding, setRefunding] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const formatCurrency = (amount: number, currency: string = 'AMD') => {
     return new Intl.NumberFormat('en-US', {
@@ -126,6 +130,68 @@ export default function OrderDetailsPage() {
     }
   }, [isLoggedIn, isAdmin, orderId]);
 
+  const handleSyncPayment = async () => {
+    if (!order || !orderId) return;
+
+    try {
+      setSyncing(true);
+      setMessage(null);
+
+      const response = await apiClient.post(`/api/v1/admin/orders/${orderId}/sync-payment`);
+      
+      // Reload order to get updated status
+      const updatedOrder = await apiClient.get<OrderDetails>(`/api/v1/admin/orders/${orderId}`);
+      setOrder(updatedOrder);
+
+      setMessage({ type: 'success', text: 'Payment status synced successfully' });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (err: any) {
+      console.error('Error syncing payment:', err);
+      setMessage({ 
+        type: 'error', 
+        text: err?.message || 'Failed to sync payment status' 
+      });
+      setTimeout(() => setMessage(null), 5000);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleRefund = async () => {
+    if (!order || !orderId) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to refund this payment?\n\nAmount: ${formatCurrency(order.total, order.currency || 'AMD')}\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setRefunding(true);
+      setMessage(null);
+
+      const response = await apiClient.post(`/api/v1/admin/orders/${orderId}/refund`, {
+        amount: order.total, // Full refund by default
+      });
+      
+      // Reload order to get updated status
+      const updatedOrder = await apiClient.get<OrderDetails>(`/api/v1/admin/orders/${orderId}`);
+      setOrder(updatedOrder);
+
+      setMessage({ type: 'success', text: 'Refund processed successfully' });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (err: any) {
+      console.error('Error processing refund:', err);
+      setMessage({ 
+        type: 'error', 
+        text: err?.message || 'Failed to process refund' 
+      });
+      setTimeout(() => setMessage(null), 5000);
+    } finally {
+      setRefunding(false);
+    }
+  };
+
   if (isLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -170,6 +236,20 @@ export default function OrderDetailsPage() {
         {error && (
           <Card className="p-4 mb-4 border border-red-200 bg-red-50">
             <div className="text-sm text-red-700">{error}</div>
+          </Card>
+        )}
+
+        {message && (
+          <Card className={`p-4 mb-4 border ${
+            message.type === 'success' 
+              ? 'border-green-200 bg-green-50' 
+              : 'border-red-200 bg-red-50'
+          }`}>
+            <div className={`text-sm ${
+              message.type === 'success' ? 'text-green-700' : 'text-red-700'
+            }`}>
+              {message.text}
+            </div>
           </Card>
         )}
 
@@ -280,16 +360,71 @@ export default function OrderDetailsPage() {
               <Card className="p-4 md:p-6">
                 <h2 className="text-sm font-semibold text-gray-900 mb-2">{t('admin.orders.orderDetails.paymentInfo')}</h2>
                 {order.payment ? (
-                  <div className="text-sm text-gray-700 space-y-1">
-                    {order.payment.method && <div>{t('admin.orders.orderDetails.method')} {order.payment.method}</div>}
-                    <div>
-                      {t('admin.orders.orderDetails.amount')}{' '}
-                      {formatCurrency(order.payment.amount, order.payment.currency || 'AMD')}
-                    </div>
-                    <div>{t('admin.orders.orderDetails.status')} {order.payment.status}</div>
-                    {order.payment.cardBrand && order.payment.cardLast4 && (
+                  <div className="space-y-3">
+                    <div className="text-sm text-gray-700 space-y-1">
+                      {order.payment.method && <div>{t('admin.orders.orderDetails.method')} {order.payment.method}</div>}
                       <div>
-                        {t('admin.orders.orderDetails.card')} {order.payment.cardBrand} ••••{order.payment.cardLast4}
+                        {t('admin.orders.orderDetails.amount')}{' '}
+                        {formatCurrency(order.payment.amount, order.payment.currency || 'AMD')}
+                      </div>
+                      <div>{t('admin.orders.orderDetails.status')} {order.payment.status}</div>
+                      {order.payment.cardBrand && order.payment.cardLast4 && (
+                        <div>
+                          {t('admin.orders.orderDetails.card')} {order.payment.cardBrand} ••••{order.payment.cardLast4}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Payment Actions */}
+                    {order.payment.providerTransactionId && (
+                      <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200">
+                        <button
+                          onClick={handleSyncPayment}
+                          disabled={syncing}
+                          className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        >
+                          {syncing ? (
+                            <>
+                              <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Syncing...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              Sync from Bank
+                            </>
+                          )}
+                        </button>
+                        
+                        {order.paymentStatus === 'paid' && order.payment.status === 'completed' && (
+                          <button
+                            onClick={handleRefund}
+                            disabled={refunding || order.paymentStatus === 'refunded'}
+                            className="px-3 py-1.5 text-xs font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                          >
+                            {refunding ? (
+                              <>
+                                <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Processing...
+                              </>
+                            ) : (
+                              <>
+                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                </svg>
+                                Refund
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

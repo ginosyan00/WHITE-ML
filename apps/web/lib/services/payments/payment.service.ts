@@ -462,6 +462,206 @@ export class PaymentService {
   }
 
   /**
+   * Sync payment status from provider
+   * 
+   * Gets payment status from bank and updates both payment and order records
+   * 
+   * @param paymentId - Internal payment ID
+   * @returns Updated payment status
+   */
+  async syncPaymentStatus(paymentId: string): Promise<PaymentStatus> {
+    try {
+      // Find payment with gateway
+      const payment = await db.payment.findUnique({
+        where: { id: paymentId },
+        include: {
+          paymentGateway: true,
+          order: true,
+        },
+      });
+
+      if (!payment) {
+        throw new Error(`Payment not found: ${paymentId}`);
+      }
+
+      if (!payment.paymentGateway) {
+        throw new Error(`Payment gateway not found for payment: ${paymentId}`);
+      }
+
+      if (!payment.providerTransactionId) {
+        throw new Error(`Provider transaction ID not found for payment: ${paymentId}`);
+      }
+
+      // Get gateway service
+      const decryptedConfig = this.decryptGatewayConfig(
+        payment.paymentGateway.config as PaymentGatewayConfig,
+        payment.paymentGateway.type as PaymentGatewayType
+      );
+      
+      const gatewayService = this.getGatewayService(
+        payment.paymentGateway.type as PaymentGatewayType,
+        decryptedConfig,
+        payment.paymentGateway.testMode,
+        payment.paymentGateway.bankId || undefined
+      );
+
+      // Get status from provider
+      const providerStatus = await gatewayService.getPaymentStatus(
+        payment.providerTransactionId
+      );
+
+      // Update payment status if changed
+      if (providerStatus !== payment.status) {
+        await db.payment.update({
+          where: { id: paymentId },
+          data: {
+            status: providerStatus,
+            completedAt: providerStatus === "completed" ? new Date() : undefined,
+            failedAt: providerStatus === "failed" ? new Date() : undefined,
+          },
+        });
+
+        // Update order payment status
+        const orderPaymentStatus = providerStatus === "completed" ? "paid" : providerStatus === "failed" ? "failed" : "pending";
+        await db.order.update({
+          where: { id: payment.orderId },
+          data: {
+            paymentStatus: orderPaymentStatus,
+            paidAt: providerStatus === "completed" ? new Date() : undefined,
+          },
+        });
+
+        console.log("[PaymentService] Payment status synced:", {
+          paymentId,
+          oldStatus: payment.status,
+          newStatus: providerStatus,
+          orderPaymentStatus,
+        });
+      }
+
+      return providerStatus;
+    } catch (error) {
+      console.error("[PaymentService] Sync payment status error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Refund payment
+   * 
+   * Processes refund through payment gateway and updates payment/order status
+   * 
+   * @param paymentId - Internal payment ID
+   * @param amount - Refund amount (optional, defaults to full payment amount)
+   * @returns Refund response
+   */
+  async refundPayment(paymentId: string, amount?: number): Promise<PaymentResponse> {
+    try {
+      // Find payment with gateway
+      const payment = await db.payment.findUnique({
+        where: { id: paymentId },
+        include: {
+          paymentGateway: true,
+          order: true,
+        },
+      });
+
+      if (!payment) {
+        throw new Error(`Payment not found: ${paymentId}`);
+      }
+
+      if (!payment.paymentGateway) {
+        throw new Error(`Payment gateway not found for payment: ${paymentId}`);
+      }
+
+      if (!payment.providerTransactionId) {
+        throw new Error(`Provider transaction ID not found for payment: ${paymentId}`);
+      }
+
+      // Check if payment is refundable
+      if (payment.status === "refunded") {
+        throw new Error("Payment has already been refunded");
+      }
+
+      if (payment.status !== "completed") {
+        throw new Error(`Payment cannot be refunded. Current status: ${payment.status}`);
+      }
+
+      // Get gateway service
+      const decryptedConfig = this.decryptGatewayConfig(
+        payment.paymentGateway.config as PaymentGatewayConfig,
+        payment.paymentGateway.type as PaymentGatewayType
+      );
+      
+      const gatewayService = this.getGatewayService(
+        payment.paymentGateway.type as PaymentGatewayType,
+        decryptedConfig,
+        payment.paymentGateway.testMode,
+        payment.paymentGateway.bankId || undefined
+      );
+
+      // Check if gateway supports refund
+      if (typeof (gatewayService as any).refund !== "function") {
+        throw new Error(`Refund not supported for gateway: ${payment.paymentGateway.type}`);
+      }
+
+      // Use provided amount or full payment amount
+      const refundAmount = amount || payment.amount;
+
+      // Validate refund amount
+      if (refundAmount > payment.amount) {
+        throw new Error(`Refund amount (${refundAmount}) cannot exceed payment amount (${payment.amount})`);
+      }
+
+      if (refundAmount <= 0) {
+        throw new Error("Refund amount must be greater than 0");
+      }
+
+      // Process refund through gateway
+      const refundResponse = await (gatewayService as any).refund(
+        payment.providerTransactionId,
+        refundAmount,
+        payment.currency
+      );
+
+      if (!refundResponse.success) {
+        throw new Error(refundResponse.message || "Refund failed");
+      }
+
+      // Update payment status
+      const isFullRefund = refundAmount >= payment.amount;
+      await db.payment.update({
+        where: { id: paymentId },
+        data: {
+          status: isFullRefund ? "refunded" : payment.status, // Keep completed for partial refunds
+          // Note: We might want to track refundedAmount separately
+        },
+      });
+
+      // Update order payment status
+      if (isFullRefund) {
+        await db.order.update({
+          where: { id: payment.orderId },
+          data: {
+            paymentStatus: "refunded",
+          },
+        });
+      }
+
+      console.log("[PaymentService] Payment refunded:", {
+        paymentId,
+        refundAmount,
+        isFullRefund,
+      });
+
+      return refundResponse;
+    } catch (error) {
+      console.error("[PaymentService] Refund payment error:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Decrypt gateway configuration
    */
   private decryptGatewayConfig(

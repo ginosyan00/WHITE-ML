@@ -359,6 +359,114 @@ export class AmeriabankPaymentService extends BasePaymentService {
   }
 
   /**
+   * Refund payment
+   * 
+   * Calls Ameriabank RefundPayment API
+   * Supports partial and full refunds
+   * 
+   * @param transactionId - PaymentID from gateway
+   * @param amount - Refund amount (in major currency units, e.g., AMD)
+   * @param currency - Currency code (default: AMD)
+   * @returns Payment response with refund status
+   */
+  async refund(transactionId: string, amount: number, currency: string = "AMD"): Promise<PaymentResponse> {
+    try {
+      console.log(`💳 [AMERIABANK REFUND] Starting refund for transactionId: ${transactionId}, amount: ${amount} ${currency}`);
+
+      // Validate amount
+      if (!this.validateAmount(amount, 0.01)) {
+        return this.createErrorResponse(
+          "INVALID_AMOUNT",
+          "Refund amount must be greater than 0.01"
+        );
+      }
+
+      // Validate currency (only AMD supported)
+      if (currency !== "AMD") {
+        return this.createErrorResponse(
+          "INVALID_CURRENCY",
+          `Only AMD currency is supported. Received: ${currency}`
+        );
+      }
+
+      // Get account credentials (default to AMD)
+      const account = this.accounts.AMD;
+      if (!account || !account.username || !account.password) {
+        return this.createErrorResponse(
+          "MISSING_ACCOUNT",
+          "AMD account credentials not configured"
+        );
+      }
+
+      // Validate transaction ID
+      if (!transactionId || transactionId.trim().length === 0) {
+        return this.createErrorResponse(
+          "INVALID_TRANSACTION_ID",
+          "Transaction ID is required"
+        );
+      }
+
+      // Prepare refund request
+      const apiUrl = this.testMode
+        ? `${this.TEST_API_BASE_URL}${this.API_PATH}/RefundPayment`
+        : `${this.API_BASE_URL}${this.API_PATH}/RefundPayment`;
+
+      const requestData = {
+        PaymentID: transactionId.trim(),
+        Username: account.username,
+        Password: account.password,
+        Amount: amount,
+      };
+
+      console.log(`💳 [AMERIABANK REFUND] Calling RefundPayment API: ${apiUrl}`);
+
+      // Ameriabank expects form-urlencoded format (not JSON)
+      const response = await this.postRequest<any>(apiUrl, requestData, {}, true);
+
+      // Check response
+      if (response.ResponseCode === "00" || response.ResponseCode === 0) {
+        console.log(`✅ [AMERIABANK REFUND] Refund successful for transactionId: ${transactionId}`);
+        
+        return {
+          success: true,
+          status: "refunded",
+          transactionId: transactionId,
+          message: response.ResponseMessage || "Refund processed successfully",
+          data: {
+            refundAmount: amount,
+            refundCurrency: currency,
+            refundTimestamp: new Date().toISOString(),
+          },
+        };
+      } else {
+        const errorCode = response.ResponseCode || "UNKNOWN";
+        const errorMessage = response.ResponseMessage || "Failed to process refund";
+        console.error(`❌ [AMERIABANK REFUND] Refund failed: ${errorCode} - ${errorMessage}`);
+        
+        return this.createErrorResponse(
+          errorCode,
+          errorMessage,
+          {
+            refundAmount: amount,
+            refundCurrency: currency,
+            refundTimestamp: new Date().toISOString(),
+          }
+        );
+      }
+    } catch (error) {
+      this.logError(error, { transactionId, amount, currency, operation: "refund" });
+      return this.createErrorResponse(
+        "REFUND_ERROR",
+        error instanceof Error ? error.message : "Failed to process refund",
+        {
+          refundAmount: amount,
+          refundCurrency: currency,
+        }
+      );
+    }
+  }
+
+  /**
    * Validate Ameriabank configuration
    */
   protected validateConfig(config: PaymentGatewayConfig): boolean {
