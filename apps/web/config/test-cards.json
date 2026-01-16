@@ -1,0 +1,27 @@
+{
+  "ameriabank": {
+    "testCards": [
+      {
+        "cardNumber": "4083 0600 1368 1818",
+        "cardNumberClean": "4083060013681818",
+        "expiryDate": "05/28",
+        "cvv": "233",
+        "cardHolderName": "TEST CARD VPOS"
+      }
+    ],
+    "enabled": true
+  },
+  "idram": {
+    "testCards": [],
+    "enabled": false
+  },
+  "inecobank": {
+    "testCards": [],
+    "enabled": false
+  },
+  "arca": {
+    "testCards": [],
+    "enabled": false
+  }
+}
+

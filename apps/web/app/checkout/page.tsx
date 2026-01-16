@@ -11,6 +11,20 @@ import { formatPrice, getStoredCurrency } from '../../lib/currency';
 import { getStoredLanguage } from '../../lib/language';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { useTranslation } from '../../lib/i18n-client';
+import testCardsConfigData from '../../config/test-cards.json';
+
+const testCardsConfig = testCardsConfigData as {
+  [key: string]: {
+    testCards: Array<{
+      cardNumber?: string;
+      cardNumberClean?: string;
+      expiryDate?: string;
+      cvv?: string;
+      cardHolderName?: string;
+    }>;
+    enabled: boolean;
+  };
+};
 
 interface CartItem {
   id: string;
@@ -261,6 +275,97 @@ export default function CheckoutPage() {
   }, {
     message: t('checkout.errors.cardHolderNameRequired'),
     path: ['cardHolderName'],
+  }).refine((data) => {
+    // Validate test card details for test mode
+    const requiresCardDetails = data.paymentMethod === 'arca' || 
+                                data.paymentMethod === 'idram' ||
+                                data.paymentMethod === 'ameriabank' ||
+                                (data.paymentMethod !== 'cash_on_delivery' && 
+                                 availableGateways.some(g => 
+                                   g.id === data.paymentMethod && 
+                                   (g.type === 'arca' || g.type === 'idram' || g.type === 'ameriabank')
+                                 ));
+    
+    if (!requiresCardDetails) {
+      return true;
+    }
+
+    // Find gateway type
+    const gateway = availableGateways.find(g => g.id === data.paymentMethod);
+    const gatewayType = gateway?.type || 
+                        (data.paymentMethod === 'ameriabank' ? 'ameriabank' :
+                         data.paymentMethod === 'idram' ? 'idram' :
+                         data.paymentMethod === 'arca' ? 'arca' : null);
+
+    if (!gatewayType) {
+      return true; // Skip validation if gateway type not found
+    }
+
+    // Check if test mode and test card validation is enabled
+    const testCardConfig = (testCardsConfig as any)[gatewayType];
+    if (!testCardConfig || !testCardConfig.enabled || !testCardConfig.testCards || testCardConfig.testCards.length === 0) {
+      return true; // Skip validation if no test cards configured
+    }
+
+    // Check if gateway is in test mode
+    const isTestMode = gateway?.testMode ?? true;
+    if (!isTestMode) {
+      return true; // Skip validation in production mode
+    }
+
+    // Validate card details against test cards
+    const cardNumberClean = data.cardNumber?.replace(/\s/g, '') || '';
+    const cardExpiry = data.cardExpiry || '';
+    const cardCvv = data.cardCvv || '';
+    const cardHolderName = data.cardHolderName?.trim().toUpperCase() || '';
+
+    console.log('[Checkout] Validating test card:', {
+      gatewayType,
+      cardNumberClean,
+      cardExpiry,
+      cardCvv,
+      cardHolderName,
+      testCards: testCardConfig.testCards,
+    });
+
+    const isValidTestCard = testCardConfig.testCards.some((testCard: any) => {
+      const testCardNumberClean = testCard.cardNumberClean || testCard.cardNumber?.replace(/\s/g, '') || '';
+      const testExpiry = testCard.expiryDate || '';
+      const testCvv = testCard.cvv || '';
+      const testHolderName = (testCard.cardHolderName || '').trim().toUpperCase();
+
+      const matches = testCardNumberClean === cardNumberClean &&
+                      testExpiry === cardExpiry &&
+                      testCvv === cardCvv &&
+                      testHolderName === cardHolderName;
+
+      console.log('[Checkout] Test card comparison:', {
+        testCard: {
+          cardNumber: testCardNumberClean,
+          expiry: testExpiry,
+          cvv: testCvv,
+          holderName: testHolderName,
+        },
+        inputCard: {
+          cardNumber: cardNumberClean,
+          expiry: cardExpiry,
+          cvv: cardCvv,
+          holderName: cardHolderName,
+        },
+        matches,
+      });
+
+      return matches;
+    });
+
+    if (!isValidTestCard) {
+      console.warn('[Checkout] Invalid test card details provided');
+    }
+
+    return isValidTestCard;
+  }, {
+    message: t('checkout.errors.invalidTestCard'),
+    path: ['cardNumber'],
   }), [t, availableGateways]);
 
   // Debug: Log modal state changes

@@ -86,15 +86,6 @@ export async function POST(
     // Get user agent
     const userAgent = req.headers.get("user-agent") || "unknown";
 
-    // Prepare webhook data
-    const webhookData: PaymentWebhookData = {
-      eventType: "payment.completed", // Will be determined by gateway
-      payload,
-      headers,
-      ipAddress,
-      userAgent,
-    };
-
     // Log webhook (before processing)
     const gatewayRecord = await db.paymentGateway.findFirst({
       where: {
@@ -117,9 +108,87 @@ export async function POST(
       );
     }
 
+    // Try to find payment record before processing webhook
+    // This helps identify the payment for status updates
+    let foundPaymentId: string | undefined = undefined;
+    let foundTransactionId: string | undefined = undefined;
+
+    // Extract gateway-specific identifiers from payload
+    const orderID = payload.OrderID || payload.orderID || payload.orderNumber;
+    const paymentID = payload.PaymentID || payload.paymentID || payload.transactionID;
+
+    console.log(`💳 [WEBHOOK ${gateway.toUpperCase()}] Extracted identifiers:`, {
+      orderID,
+      paymentID,
+      payloadKeys: Object.keys(payload),
+    });
+
+    // Try to find payment by providerTransactionId (PaymentID from gateway)
+    if (paymentID) {
+      const paymentByTransaction = await db.payment.findFirst({
+        where: {
+          providerTransactionId: paymentID,
+        },
+      });
+
+      if (paymentByTransaction) {
+        foundPaymentId = paymentByTransaction.id;
+        foundTransactionId = paymentID;
+        console.log(`✅ [WEBHOOK ${gateway.toUpperCase()}] Found payment by PaymentID:`, {
+          paymentId: foundPaymentId,
+          transactionId: foundTransactionId,
+        });
+      }
+    }
+
+    // Try to find payment by order number (OrderID from gateway)
+    if (!foundPaymentId && orderID) {
+      const order = await db.order.findFirst({
+        where: {
+          number: orderID,
+        },
+        include: {
+          payments: {
+            where: {
+              paymentGatewayId: gatewayRecord.id,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 1,
+          },
+        },
+      });
+
+      if (order && order.payments.length > 0) {
+        foundPaymentId = order.payments[0].id;
+        if (paymentID) {
+          foundTransactionId = paymentID;
+        }
+        console.log(`✅ [WEBHOOK ${gateway.toUpperCase()}] Found payment by OrderID:`, {
+          orderID,
+          paymentId: foundPaymentId,
+          transactionId: foundTransactionId,
+        });
+      }
+    }
+
+    // Prepare webhook data
+    const webhookData: PaymentWebhookData = {
+      eventType: "payment.completed", // Will be determined by gateway
+      paymentId: foundPaymentId,
+      transactionId: foundTransactionId,
+      orderId: orderID,
+      payload,
+      headers,
+      ipAddress,
+      userAgent,
+    };
+
     const webhookLog = await db.paymentWebhookLog.create({
       data: {
         paymentGatewayId: gatewayRecord.id,
+        paymentId: foundPaymentId,
         eventType: webhookData.eventType,
         payload: payload as any,
         headers: headers as any,

@@ -284,32 +284,94 @@ export class PaymentService {
       // Process webhook
       const status = await gatewayService.processWebhook(data);
 
-      // Update payment record if paymentId is provided
+      // Find payment record if paymentId is not provided but we have orderId or transactionId
+      let paymentToUpdate = null;
+      
       if (data.paymentId) {
-        await db.payment.update({
+        paymentToUpdate = await db.payment.findUnique({
           where: { id: data.paymentId },
+        });
+      } else {
+        // Try to find payment by transactionId (PaymentID from gateway)
+        if (data.transactionId) {
+          paymentToUpdate = await db.payment.findFirst({
+            where: {
+              providerTransactionId: data.transactionId,
+            },
+          });
+          console.log("[PaymentService] Found payment by transactionId:", {
+            transactionId: data.transactionId,
+            paymentId: paymentToUpdate?.id,
+          });
+        }
+
+        // Try to find payment by orderId (OrderID from gateway)
+        if (!paymentToUpdate && data.orderId) {
+          const order = await db.order.findFirst({
+            where: {
+              number: data.orderId,
+            },
+            include: {
+              payments: {
+                where: {
+                  paymentGatewayId: gateway.id,
+                },
+                orderBy: {
+                  createdAt: "desc",
+                },
+                take: 1,
+              },
+            },
+          });
+
+          if (order && order.payments.length > 0) {
+            paymentToUpdate = order.payments[0];
+            console.log("[PaymentService] Found payment by orderId:", {
+              orderId: data.orderId,
+              paymentId: paymentToUpdate.id,
+            });
+          }
+        }
+      }
+
+      // Update payment record if found
+      if (paymentToUpdate) {
+        await db.payment.update({
+          where: { id: paymentToUpdate.id },
           data: {
             status,
-            providerTransactionId: data.transactionId,
+            providerTransactionId: data.transactionId || paymentToUpdate.providerTransactionId,
             completedAt: status === "completed" ? new Date() : undefined,
             failedAt: status === "failed" ? new Date() : undefined,
           },
         });
 
-        // Update order payment status
-        const payment = await db.payment.findUnique({
-          where: { id: data.paymentId },
+        console.log("[PaymentService] Payment status updated:", {
+          paymentId: paymentToUpdate.id,
+          status,
+          orderId: paymentToUpdate.orderId,
         });
 
-        if (payment) {
-          await db.order.update({
-            where: { id: payment.orderId },
-            data: {
-              paymentStatus: status,
-              paidAt: status === "completed" ? new Date() : undefined,
-            },
-          });
-        }
+        // Update order payment status
+        await db.order.update({
+          where: { id: paymentToUpdate.orderId },
+          data: {
+            paymentStatus: status === "completed" ? "paid" : status === "failed" ? "failed" : "pending",
+            paidAt: status === "completed" ? new Date() : undefined,
+          },
+        });
+
+        console.log("[PaymentService] Order payment status updated:", {
+          orderId: paymentToUpdate.orderId,
+          paymentStatus: status === "completed" ? "paid" : status === "failed" ? "failed" : "pending",
+        });
+      } else {
+        console.warn("[PaymentService] Payment not found for webhook update:", {
+          paymentId: data.paymentId,
+          transactionId: data.transactionId,
+          orderId: data.orderId,
+          gatewayType,
+        });
       }
 
       // Log webhook

@@ -93,6 +93,7 @@
     "cardExpiryRequired": "Card expiry date is required",
     "cvvRequired": "CVV is required",
     "cardHolderNameRequired": "Cardholder name is required",
+    "invalidTestCard": "Please use the correct test card details provided by the payment gateway. Test mode only accepts specific test cards.",
     "fillShippingAddress": "Please fill in all shipping address fields",
     "cartEmpty": "Cart is empty",
     "failedToLoadCart": "Failed to load cart",
