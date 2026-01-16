@@ -361,18 +361,18 @@ export class PaymentService {
       return payment.status as PaymentStatus;
     }
 
-      // Decrypt config before using
-      const decryptedConfig = this.decryptGatewayConfig(
-        payment.paymentGateway.config as PaymentGatewayConfig,
-        payment.paymentGateway.type as PaymentGatewayType
-      );
-      
-      const gatewayService = this.getGatewayService(
-        payment.paymentGateway.type as PaymentGatewayType,
-        decryptedConfig,
-        payment.paymentGateway.testMode,
-        payment.paymentGateway.bankId || undefined
-      );
+    // Decrypt config before using
+    const decryptedConfig = this.decryptGatewayConfig(
+      payment.paymentGateway.config as PaymentGatewayConfig,
+      payment.paymentGateway.type as PaymentGatewayType
+    );
+    
+    const gatewayService = this.getGatewayService(
+      payment.paymentGateway.type as PaymentGatewayType,
+      decryptedConfig,
+      payment.paymentGateway.testMode,
+      payment.paymentGateway.bankId || undefined
+    );
 
     // Get status from provider
     try {
@@ -398,7 +398,6 @@ export class PaymentService {
       return payment.status as PaymentStatus;
     }
   }
-}
 
   /**
    * Decrypt gateway configuration
@@ -409,7 +408,7 @@ export class PaymentService {
   ): PaymentGatewayConfig {
     try {
       const fieldsToDecrypt: string[] = [];
-      
+
       switch (type) {
         case "idram":
           fieldsToDecrypt.push("idramKey", "idramTestKey");
@@ -417,9 +416,7 @@ export class PaymentService {
         case "ameriabank":
         case "inecobank":
         case "arca":
-          fieldsToDecrypt.push(
-            "accounts.AMD.password"
-          );
+          fieldsToDecrypt.push("accounts.AMD.password");
           break;
       }
 

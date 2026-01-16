@@ -192,14 +192,15 @@ export default function CheckoutPage() {
     message: t('checkout.errors.invalidPhoneFormat'),
     path: ['shippingPhone'],
   }).refine((data) => {
-    // Check if payment method requires card details (ArCa or Idram)
-    // paymentMethod can be 'cash_on_delivery', 'arca', 'idram', or gateway ID
+    // Check if payment method requires card details (ArCa, Idram, or Ameriabank)
+    // paymentMethod can be 'cash_on_delivery', 'arca', 'idram', 'ameriabank', or gateway ID
     const requiresCardDetails = data.paymentMethod === 'arca' || 
                                 data.paymentMethod === 'idram' ||
+                                data.paymentMethod === 'ameriabank' ||
                                 (data.paymentMethod !== 'cash_on_delivery' && 
                                  availableGateways.some(g => 
                                    g.id === data.paymentMethod && 
-                                   (g.type === 'arca' || g.type === 'idram')
+                                   (g.type === 'arca' || g.type === 'idram' || g.type === 'ameriabank')
                                  ));
     
     if (requiresCardDetails) {
@@ -212,10 +213,11 @@ export default function CheckoutPage() {
   }).refine((data) => {
     const requiresCardDetails = data.paymentMethod === 'arca' || 
                                 data.paymentMethod === 'idram' ||
+                                data.paymentMethod === 'ameriabank' ||
                                 (data.paymentMethod !== 'cash_on_delivery' && 
                                  availableGateways.some(g => 
                                    g.id === data.paymentMethod && 
-                                   (g.type === 'arca' || g.type === 'idram')
+                                   (g.type === 'arca' || g.type === 'idram' || g.type === 'ameriabank')
                                  ));
     
     if (requiresCardDetails) {
@@ -228,10 +230,11 @@ export default function CheckoutPage() {
   }).refine((data) => {
     const requiresCardDetails = data.paymentMethod === 'arca' || 
                                 data.paymentMethod === 'idram' ||
+                                data.paymentMethod === 'ameriabank' ||
                                 (data.paymentMethod !== 'cash_on_delivery' && 
                                  availableGateways.some(g => 
                                    g.id === data.paymentMethod && 
-                                   (g.type === 'arca' || g.type === 'idram')
+                                   (g.type === 'arca' || g.type === 'idram' || g.type === 'ameriabank')
                                  ));
     
     if (requiresCardDetails) {
@@ -244,10 +247,11 @@ export default function CheckoutPage() {
   }).refine((data) => {
     const requiresCardDetails = data.paymentMethod === 'arca' || 
                                 data.paymentMethod === 'idram' ||
+                                data.paymentMethod === 'ameriabank' ||
                                 (data.paymentMethod !== 'cash_on_delivery' && 
                                  availableGateways.some(g => 
                                    g.id === data.paymentMethod && 
-                                   (g.type === 'arca' || g.type === 'idram')
+                                   (g.type === 'arca' || g.type === 'idram' || g.type === 'ameriabank')
                                  ));
     
     if (requiresCardDetails) {
@@ -270,6 +274,8 @@ export default function CheckoutPage() {
     formState: { errors, isSubmitting },
     setValue,
     watch,
+    trigger,
+    getValues,
   } = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
@@ -300,8 +306,10 @@ export default function CheckoutPage() {
     const gatewayType = method?.gatewayType;
     const requiresCardDetails = gatewayType === 'arca' || 
                                 gatewayType === 'idram' || 
+                                gatewayType === 'ameriabank' ||
                                 paymentMethod === 'arca' || 
-                                paymentMethod === 'idram';
+                                paymentMethod === 'idram' ||
+                                paymentMethod === 'ameriabank';
     
     return {
       method,
@@ -1906,28 +1914,42 @@ export default function CheckoutPage() {
                 type="button"
                 variant="primary"
                 className="flex-1"
-                onClick={handleSubmit(
-                  (data) => {
-                    setShowCardModal(false);
-                    // If guest checkout, show shipping modal first, otherwise submit
-                    if (!isLoggedIn) {
-                      setShowShippingModal(true);
-                    } else {
-                      onSubmit(data);
-                    }
-                  },
-                  (errors) => {
-                    console.log('[Checkout Card Modal] Validation errors:', errors);
-                    // Keep modal open if there are errors - scroll to first error
-                    const firstErrorField = Object.keys(errors)[0];
-                    if (firstErrorField) {
-                      const errorElement = document.querySelector(`[name="${firstErrorField}"]`);
-                      if (errorElement) {
-                        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                onClick={async () => {
+                  console.log('[Checkout Card Modal] Continue to Payment clicked');
+                  
+                  // Validate only card fields
+                  const cardFieldsValid = await trigger(['cardNumber', 'cardExpiry', 'cardCvv', 'cardHolderName']);
+                  
+                  if (!cardFieldsValid) {
+                    console.log('[Checkout Card Modal] Card validation failed');
+                    // Find first error field and scroll to it
+                    const cardErrorFields = ['cardNumber', 'cardExpiry', 'cardCvv', 'cardHolderName'];
+                    for (const field of cardErrorFields) {
+                      if (errors[field as keyof typeof errors]) {
+                        const errorElement = document.querySelector(`[name="${field}"]`);
+                        if (errorElement) {
+                          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                        break;
                       }
                     }
+                    return;
                   }
-                )}
+                  
+                  console.log('[Checkout Card Modal] Card validation passed, proceeding...');
+                  setShowCardModal(false);
+                  
+                  // If guest checkout, show shipping modal first, otherwise submit
+                  if (!isLoggedIn) {
+                    console.log('[Checkout Card Modal] Guest checkout - showing shipping modal');
+                    setShowShippingModal(true);
+                  } else {
+                    console.log('[Checkout Card Modal] Logged in - submitting order');
+                    // Get current form values and submit
+                    const formData = getValues();
+                    onSubmit(formData);
+                  }
+                }}
                 disabled={isSubmitting}
               >
                 {isSubmitting ? t('checkout.buttons.processing') : t('checkout.buttons.continueToPayment')}

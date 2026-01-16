@@ -100,3 +100,5 @@ async function updatePricesTo10AMD() {
 
 updatePricesTo10AMD();
 
+
+
